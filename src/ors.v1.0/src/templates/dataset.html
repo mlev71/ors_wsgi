@@ -1,0 +1,61 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN"
+   "http://www.w3.org/TR/html4/strict.dtd">
+    <head profile="http://dublincore.org/documents/2008/08/04/dc-html/">
+        <title> Landing Page for {{ Payload['@id'] }} </title>
+        <link rel="schema.DC" href="http://purl.org/dc/elements/1.1/" >
+        <link rel="schema.DCTERMS" href="http://purl.org/dc/terms/" >
+        <link rel="schema.DCTYPE" href="http://purl.org/dc/dcmitype" >
+
+        <meta name="DC.type" content = "Location" >
+        <meta name="DC.title" content = "{{ Payload['name']}}" >
+
+        <meta name="DC.publisher" content= "{{ Payload['author']}}">
+
+        <meta name="DC.identifier" content ="{{ Payload['@id']}}" scheme="DCTERMS.URI" > 
+        <link rel="DC.identifier" content ="{{ Payload['@id']}}" scheme="DCTERMS.URI" > 
+
+        <meta name="DCTERMS.subject" href= "{{ Payload['identifier'] }}" > 
+        <link rel="DCTERMS.subject" href="{{ Payload['identifier'] }}" >
+
+        <meta name="DCTERMS.isLocatedAt" content ="{{ Payload['includedInDataCatalogue']}}" scheme="DCTERMS.URI" >
+        <link rel="DCTERMS.isLocatedAt" content =" {{ Payload['includedInDataCatalogue']}}" scheme="DCTERMS.URI" >
+
+        <!-- distinguishing between two dates -->
+        <meta name="DC.date" content = "{{ Payload['dateCreated'] }}" >
+        <meta name="DC.date" content = "{{ Payload['datePublished'] }}" >
+    </head>
+<body>
+
+    <h1> Dataset</h1>
+    <table>
+
+        <tr>
+            <th> GUID </th>
+            <th> {{ Payload['@id'] }} </th>
+        </tr>
+        
+        <tr>
+            <th> Description</th>
+            <th> {{ Payload['includedInDataCatalog'] }}</th>
+        </tr>
+
+
+        <tr>
+            <th> Identifier  </th>
+            <th> {{ Payload['identifier'] }} </th>
+        </tr>
+
+        <tr>
+            <th> Author/Publisher </th>
+            <th> {{ Payload['author'] }} </th>
+        </tr>
+
+        <tr>
+            <th> Date Created </th>
+            <th> {{ Payload['dateCreated'] }} </th>
+        </tr>
+
+        
+    </table>
+
+</body>

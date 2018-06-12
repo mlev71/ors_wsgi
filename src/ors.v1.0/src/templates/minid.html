@@ -1,0 +1,82 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN"
+   "http://www.w3.org/TR/html4/strict.dtd">
+    <head profile="http://dublincore.org/documents/2008/08/04/dc-html/">
+        <title> Landing Page for {{ Payload['identifier'] }} </title>
+        <link rel="schema.DC" href="http://purl.org/dc/elements/1.1/" >
+        <link rel="schema.DCTERMS" href="http://purl.org/dc/terms/" >
+        <link rel="schema.DCTYPE" href="http://purl.org/dc/dcmitype" >
+
+        <!-- identifier -->            
+        <meta name="DC.identifier" content ="{{ Payload['identifier']}}" scheme="DCTERMS.URI" > 
+        <link rel="DC.identifier" content ="{{ Payload['identifier']}}" scheme="DCTERMS.URI" > 
+
+        <!-- created -->
+        <meta name="DC.date" content="{{ Payload['created'] }}" >
+        <!-- creator if Orchid can be URI -->
+        <meta name="DC.creator" content="{{ Payload['creator'] }}" >
+
+        <!-- locations --> 
+        {% for location in Payload['locations'] %}
+            <meta name="DCTERMS.subject" href= "{{ location}}" > 
+            <link rel="DCTERMS.subject" href="{{location}}" >
+        {% endfor %}
+        <!-- titles -->
+        {% for title in Payload['titles'] %}
+            <meta name="DC.title" content={{title}} />        
+        {% endfor %}
+
+    </head>
+<body>
+
+    <!-- Citation Metadata-->
+    <h1> </h1>
+    <table>
+        <!--Dataset Identifier -->
+        <tr>
+            <th> Minid Identifier </th>
+            <th> {{ Payload['identifier'] }} </th>
+        </tr>
+
+        <!--Title-->
+        {% for title in Payload['titles'] %}
+        <tr>
+            <th> Title </th>
+            <th> {{ title }} </th>
+        </tr>
+        {% endfor %}
+
+        <!--Creator-->
+        <tr>
+            <th> Creator </th>
+            <th> {{ Payload['creator'] }} </th>
+        </tr>
+
+        
+        <!--Data Repository or Archive-->
+        {% for location in Payload['locations'] %} 
+        <tr>
+            <th> Location </th>
+            <th> {{ location }} </th>
+        </tr>
+
+        {% endfor %}
+
+        <!-- Publication Date-->
+        <tr>
+            <th> Publication Date </th>
+            <th> {{ Payload['created'] }} </th>
+        </tr>
+
+        <tr>
+            <th> Checksum </th>
+            <th> {{ Payload['checksum'] }} </th>
+        </tr> 
+
+
+        <tr>
+            <th> Checksum Method </th>
+            <th> {{ Payload['checksumMethod'] }} </th>
+        </tr>
+
+    </table>
+</body>

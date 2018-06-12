@@ -1,0 +1,49 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN"
+   "http://www.w3.org/TR/html4/strict.dtd">
+    <head profile="http://dublincore.org/documents/2008/08/04/dc-html/">
+        <title> Landing Page for {{ Payload['@id'] }} </title>
+        <link rel="schema.DC" href="http://purl.org/dc/elements/1.1/" >
+        <link rel="schema.DCTERMS" href="http://purl.org/dc/terms/" >
+        <link rel="schema.DCTYPE" href="http://purl.org/dc/dcmitype" >
+
+        <meta name="DC.type" content = "Item" >
+
+        <meta name="DC.identifier" content ="{{ Payload['@id']}}" scheme="DCTERMS.URI" > 
+        <link rel="DC.identifier" content ="{{ Payload['@id']}}" scheme="DCTERMS.URI" > 
+
+        <meta name="DCTERMS.subject" href= "{{ Payload['identifier'] }}" > 
+        <link rel="DCTERMS.subject" href="{{ Payload['identifier'] }}" >
+
+        <!-- inDataset --> 
+        <!-- Version -->
+        <!-- contentSize -->
+
+    </head>
+<body>
+
+    <!-- Citation Metadata-->
+    <h1> Data Catalogue: {{ Payload['@id'] }} </h1>
+    <table>
+        <!--Dataset Identifier -->
+        <tr>
+            <th> GUID </th>
+            <th> {{ Payload['@id'] }} </th>
+        </tr>
+
+        <!--Title-->
+        <tr>
+            <th> Identifier  </th>
+            <th> {{ Payload['identifier'] }} </th>
+        </tr>
+
+        <tr>
+            <th> Version  </th>
+            <th> {{ Payload['version'] }} </th>
+        </tr>
+
+        <tr>
+            <th> contentSize  </th>
+            <th> {{ Payload['contentSize'] }} </th>
+        </tr>
+    </table>
+</body>

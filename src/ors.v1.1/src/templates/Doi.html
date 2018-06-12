@@ -1,0 +1,76 @@
+{% extends "layout.html" %}
+   <!--Dublin Core Embedding for Doi-->
+        <title> Landing Page for {{ data['@id'] }} </title>
+
+        <!-- What DC metadata is in the page-->
+        <link rel="schema.DC" href="http://purl.org/dc/elements/1.1/" >
+        <link rel="schema.DCTERMS" href="http://purl.org/dc/terms/" >
+        <link rel="schema.DCTYPE" href="http://purl.org/dc/dcmitype" >
+
+        <!-- Values-->
+        <meta name="DC.type" content = "Collection" >
+        <meta name="DC.title" content = "Landing Page for {{ data['name']}}" >
+
+        <!-- identifier -->            
+        <meta name="DC.identifier" content ="{{ data['@id']}}" scheme="DCTERMS.URI" > 
+        <link rel="DC.identifier" content ="{{ data['@id']}}" scheme="DCTERMS.URI" > 
+
+        <!-- locations --> 
+        <meta name="DCTERMS.subject" href= "{{ data['name'] }}" > 
+        <link rel="DCTERMS.subject" href="{{ data['name'] }}" >
+
+    </head>
+
+   <!-- Schema.org formatted body --> 
+   <body itemscope itemtype="http://schema.org/{{data['@type']}}">
+
+      <h1 itemprop="name">{{data['name']}}</h1>
+
+      <!-- required keys --> 
+      <table>
+         <tr>
+            <th> Name </th>
+            <th itemprop="name">{{data['name']}}</th>
+         </tr>
+
+         <tr>
+            <th> Author </th>
+            <th itemprop="author">{{data['author']}}</th>
+         </tr>
+
+         <tr>
+            <th> Date Published </th>
+            <th itemprop="datePublished">{{data['datePublished']}}</th>
+         </tr>
+  
+         <!-- loop for all availble cloud locations --> 
+         {% for key,value in data['contentUrl'].items() %}
+         <tr>
+            <th> {{key}} Content Url  </th>
+            <th itemprop='contentUrl'> <a href="{{value}}">{{value}}</a> </th>
+         </tr> 
+         {% endfor %}
+
+         <tr> 
+            <th>Identifier </th>
+            <th itemprop="identifier">{{data['identifier']}}</th>
+         </tr> 
+
+         <tr>
+            <th> Url </th>
+            <th itemprop="url">{{data['url']}}</th>
+         </tr>
+
+         <tr>
+            <th> Included In Data Catalog </th>
+            <th itemprop="includedInDataCatalog"> {{data['includedInDataCatalog']}} </th>
+         </tr> 
+
+
+
+      <!-- optional keys -->
+
+      </table>
+   </body>
+
+
