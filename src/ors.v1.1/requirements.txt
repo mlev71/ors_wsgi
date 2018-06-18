@@ -1,5 +1,0 @@
-requests
-flask
-uwsgi
-neo4j-driver
-globus-sdk

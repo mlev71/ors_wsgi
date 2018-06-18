@@ -1,0 +1,8 @@
+
+<!-- loop for all availble cloud locations --> 
+{% for key,value in data['contentUrl'].items() %}
+<tr>
+   <th> {{key}} Content Url  </th>
+   <th itemprop='contentUrl'> <a href="{{value}}">{{value}}</a> </th>
+</tr> 
+{% endfor %}

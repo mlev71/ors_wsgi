@@ -1,0 +1,16 @@
+version: '3'
+services:
+   wsgi:
+      build: src/server/.
+      ports: 
+      - "8080:8080"
+      links:
+      - redis
+
+   worker:
+      build: src/worker/.
+      links:
+      - redis
+
+   redis:
+      image: redis
