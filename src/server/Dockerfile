@@ -24,3 +24,5 @@ COPY email_hashed.p .
 EXPOSE 8080
 
 ENTRYPOINT [ "uwsgi", "--ini", "http.ini"]
+#ENTRYPOINT [ "uwsgi", "--master", "--https", "0.0.0.0:8443,foobar.key,foobar.crt" ]
+

@@ -12,13 +12,7 @@ class NeoConn():
     def __init__(self, local=True):
         ''' Establish Driver Connection with Neo4j database
         '''
-        if local==True:
-            try:
-                self.driver = GraphDatabase.driver(uri ="bolt://localhost:7687")
-            except:
-                pass
-        else:
-            self.driver = GraphDatabase.driver(uri = self.uri, auth = (self.user, self.password) )
+        self.driver = GraphDatabase.driver(uri = self.uri, auth = (self.user, self.password) )
 
 
     def getDownloads(self, guid, loc='aws'):    

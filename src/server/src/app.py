@@ -144,7 +144,7 @@ def DeleteDC(GUID):
     response_dict = api_async_response.get()
 
     # removes from cache
-    removed_data = deleteCache(GUID)
+    removed_data = dc.deleteCache(GUID)
 
     response_message = {
             "cache": {"metadata": removed_data, "message": "Removed from cache"},
@@ -247,11 +247,10 @@ def MintArk():
 @app.route('/ark/delete/<path:GUID>', methods= ['DELETE'])
 @auth_required
 def DeleteArk(GUID):
-    obj = Ark(guid=GUID)
+    ark = Ark(guid=GUID)
 
-
-    api_async_response = obj.deleteAPI()
-    neo_response = deleteCache(GUID)
+    api_async_response = ark.deleteAPI()
+    neo_response = ark.neo_driver.deleteCache(GUID)
 
     response_dict = api_async_response.get()
 
@@ -354,10 +353,10 @@ def MintDoi():
 @app.route('/doi/delete/<path:GUID>', methods= ['DELETE'])
 @auth_required
 def DeleteDoi(GUID):
-    obj = Doi(guid=GUID)
+    doi = Doi(guid=GUID)
 
-    api_async_response = obj.deleteAPI()
-    neo_response = deleteCache(GUID)
+    api_async_response = doi.deleteAPI()
+    neo_response = doi.deleteCache(GUID)
 
 
     response_dict = api_async_response.get()
@@ -427,7 +426,7 @@ def ImportDoi(GUID):
     final_payload = formatJson(unroll(removeProfileFormat(ingestAnvl(payload))))
 
     # read into DC interface
-    obj = Ark(final_payload)  
+    obj = Doi(final_payload)  
     post = obj.postNeo()
 
     response_message = {"cache": {"imported": post} }

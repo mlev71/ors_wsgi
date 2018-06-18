@@ -1,16 +1,38 @@
 version: '3'
 services:
+
+
+   # nginx reverse proxy contains ssl certs
+   nginx:
+      build: src/nginx/.
+      ports:
+      - "443:443"
+      links:
+         - wsgi
+
    wsgi:
       build: src/server/.
-      ports: 
-      - "8080:8080"
+      environment:
+         - NEO_USER=neo4j 
+         - NEO_PASSWORD=localtest
+         - NEO_URL=neo-cache
+         - REDIS_URL=redis-cache
       links:
-      - redis
+      - redis-cache
+
+   # add bagit service
 
    worker:
       build: src/worker/.
+      environment:
+         - REDIS_URL=redis-cache
       links:
-      - redis
+      - redis-cache
 
-   redis:
+   redis-cache:
       image: redis
+
+   neo-cache:
+      image: neo4j
+      environment:
+         - NEO4J_AUTH=neo4j/localtest

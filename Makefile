@@ -6,5 +6,8 @@ run-local:
 	docker-compose build
 	docker-compose up
 
-
+restart-wsgi:
+	docker-compose kill wsgi
+	docker-compose build wsgi
+	docker-compose up -d --no-deps wsgi
 

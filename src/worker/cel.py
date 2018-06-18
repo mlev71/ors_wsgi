@@ -4,12 +4,14 @@
 from celery import Celery
 import re
 import requests
+import os
 
+REDIS_URL = os.environ.get('REDIS_URL')
 
 celery = Celery(
         'cel',
-        backend= 'redis://redis:6379',
-        broker = 'redis://redis:6379' 
+        backend= 'redis://'+REDIS_URL+':6379',
+        broker = 'redis://'+REDIS_URL+':6379' 
         )
 
 

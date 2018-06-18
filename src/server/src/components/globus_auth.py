@@ -3,7 +3,7 @@ import hashlib
 import string
 from functools import wraps
 import globus_sdk
-from flask import request, session
+from flask import redirect, request, session
 
 
 # globus auth global constants

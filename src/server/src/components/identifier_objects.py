@@ -111,6 +111,11 @@ class CoreMetadata():
         del_task = delete_task.delay(target, self.auth[0], self.auth[1])
         return del_task
 
+    def deleteCache(self):
+        ''' Use connection to neo to delete own guid
+        '''
+
+        return self.neo_driver.deleteCache(self.guid)
 
     def getDownloads(self):
         ''' Decrypt the cloud bucket locations
@@ -238,9 +243,12 @@ class Ark(CoreMetadata):
                             checksum = checksum_dict['value']
                             )
                 
-                
+
                 node_data = node.data()
-                return node_data[0].get('properties(node)', None)
+                if node_data != []:
+                    return node_data[0].get('properties(node)', None)
+                else:
+                    return None
 
                 
 class Doi(CoreMetadata): 
