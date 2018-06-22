@@ -2,50 +2,21 @@
 #                   TASK QUEUE                             #
 ############################################################
 from celery import Celery
-import re
-import requests
-import os
+import re, requests, os, json
 from neo4j.v1 import GraphDatabase
 import neo4j.v1
 
 
 
-##################################
-#               AES CRYPTO       #
-##################################
 
-from Crypto.Cipher import AES
-from Crypto import Random
-import base64
-import hashlib
-
-block_size = 32
-key = hashlib.sha256("hellothisismycipherkey".encode()).digest()
-iv = Random.new().read(AES.block_size)
-
-GLOBAL_CIPHER = AES.new(key, AES.MODE_CBC, iv)
-
-def encrypt(raw, cipher):
-        raw = pad(raw)
-        return base64.b64encode(iv + cipher.encrypt(raw))
-
-def decrypt(enc, cipher):
-    enc = base64.b64decode(enc)
-    iv = enc[:AES.block_size]
-    return unpad(cipher.decrypt(enc[AES.block_size:])).decode('utf-8')
+NEO_URI = "".join(["bolt://",os.environ.get('NEO_URL', 'localhost'), ":7687"])
+NEO_USER = os.environ.get('NEO_USER', 'neo4j')
+NEO_PASSWORD = os.environ.get('NEO_PASSWORD', 'localtest')
 
 
-def pad(s):
-    return s + (32 - len(s) % 32) * chr(32 - len(s) % 32)
-
-def unpad(s):
-    return s[:-ord(s[len(s)-1:])]
+REDIS_URL = os.environ.get('REDIS_URL', 'localhost')
 
 
-NEO_URI = "".join(["bolt://",os.environ.get('NEO_URL', "none"), ":7687"])
-NEO_USER = os.environ.get('NEO_USER')
-NEO_PASSWORD = os.environ.get('NEO_PASSWORD')
-REDIS_URL = os.environ.get('REDIS_URL')
 
 
 celery = Celery(
@@ -152,28 +123,24 @@ def reserve_doi(doi, landing_page, user, password):
 
 
 
-##############
-
 ##################
 # NEO CACHE TASKS#
 ##################
 
-#   Delete by Guid
-# ================
 
+#   Delete by Guid
 @celery.task(name="delete_neo_guid")
 def deleteNeoByGuid(guid):
     neo_driver = GraphDatabase.driver(uri = NEO_URI, auth = (NEO_USER, NEO_PASSWORD) )
     with neo_driver.session() as session:
         with session.begin_transaction() as tx:
             tx.run(
-                    "MATCH (n {guid: $guid}) DETACH DELETE n",
+                    "MATCH (n {guid: $guid}) DETACH DELETE n "
+                    "RERTURN n ",
                     guid = guid
                     )
 
 
-#   Put Ark Tasks                
-#============================
 
 # Put Ark
 @celery.task(name="post_neo_ark")
@@ -197,8 +164,9 @@ def postNeoArk(data):
                 assert name is not None
                 assert guid is not None
                 assert datePublished is not None
-                doi_record = tx.run(
-                        "MERGE (doi:Ark:DataCatalog {name: $name, guid:$guid, datePublished: $datePub}) ",
+                ark_record = tx.run(
+                        "MERGE (ark:Ark:DataCatalog {name: $name, guid:$guid, datePublished: $datePub}) "
+                        "RETURN ark ",
                         name = name,
                         guid = guid,
                         datePub = datePublished
@@ -209,10 +177,9 @@ def postNeoArk(data):
                 assert guid is not None
                 assert datePublished is not None
                 assert includedInDataCatalog is not None
-                doi_record = tx.run(
-                        "MATCH (dc:DataCatalog) WHERE dc.guid = $dcguid "
-                        "MERGE (doi:Ark:Dataset {name: $name, guid: $guid, datePublished: $datePub}) "
-                        "MERGE (doi)-[:includedInDataCatalog]->(dc) ",
+                ark_record = tx.run(
+                        "MERGE (ark:Ark:Dataset {name: $name, guid: $guid, datePublished: $datePub})-[:includedInDataCatalog]->(dc:DataCatalog {guid: $dcguid) "
+                        "RETURN ark",
                         dcguid = includedInDataCatalog,
                         name = name,
                         guid = guid,
@@ -220,11 +187,22 @@ def postNeoArk(data):
                         )
 
 
+    node = ark_record.single().data().get('ark')
+
+    properties = dict(node.items())
+
+    response = {
+            'id': node.id,
+            'labels': list(node.labels),
+            'properties': properties
+            }
+
+    return response
+
 # Put Doi
 @celery.task(name="post_neo_doi")
 def postNeoDoi(data):
-    ''' Add a guid node to the neo store
-    
+    ''' Add a guid node to the neo store 
     If its a dataset attach it to it's DataCatalog
     '''
 
@@ -243,7 +221,8 @@ def postNeoDoi(data):
                 assert guid is not None
                 assert datePublished is not None
                 doi_record = tx.run(
-                        "MERGE (doi:Doi:DataCatalog {name: $name, guid:$guid, datePublished: $datePub}) ",
+                        "MERGE (doi:Doi:DataCatalog {name: $name, guid:$guid, datePublished: $datePub}) "
+                        "RETURN doi",
                         name = name,
                         guid = guid,
                         datePub = datePublished
@@ -255,106 +234,144 @@ def postNeoDoi(data):
                 assert datePublished is not None
                 assert includedInDataCatalog is not None
                 doi_record = tx.run(
-                        "MATCH (dc:DataCatalog) WHERE dc.guid = $dcguid "
-                        "MERGE (doi:Doi:Dataset {name: $name, guid: $guid, datePublished: $datePub})-[:includedInDataCatalog]->(dc) ",
+                        "MERGE (doi:Doi:Dataset {name: $name, guid: $guid, datePublished: $datePub})-[:includedInDataCatalog]->(dc {guid: $dcguid} ) "
+                        "RETURN doi",
                         dcguid = includedInDataCatalog,
                         name = name,
                         guid = guid,
                         datePub = datePublished
                         )
 
+    node = doi_record.single().data().get('doi')
 
-# Add to downloads
-@celery.task(name="post_neo_downloads")
-def postNeoDownloads(content, checksum_list,fileFormat, guid):
-    ''' Post all the download information and the 
-    '''
+    response = {
+            'id': node.id,
+            'labels': list(node.labels),
+            'properties': dict(node.items())
+            }
 
+    return response
+
+
+@celery.task(name="post_download")
+def postDownload(location, checksumList, fileFormat, datasetGuid, resourceType):
     neo_driver = GraphDatabase.driver(uri = NEO_URI, auth = (NEO_USER, NEO_PASSWORD) ) 
-
-    aws_location_list = list(filter(lambda x: re.match('aws',x) ,content))
-    if len(aws_location_list)>1:
-        aws_location = aws_location_list[0]
-    else:
-        aws_location = None
-
-    gpc_location_list = list(filter(lambda x: re.match('gpc',x) ,content))
-    if len(gpc_location_list)>1:
-        gpc_location = gpc_location_list[0]
-    else:
-        gpc_location = None
-
-    downloads = {}
-
     with neo_driver.session() as session:
         with session.begin_transaction() as tx:
-            if aws_location is not None:
-                aws_encrypted = encrypt(aws_location, GLOBAL_CIPHER).decode()
 
-                # post aws download attatch to 
-                if fileFormat is not None:
-                    aws_record = tx.run(
-                            "MATCH (doi:Dataset) WHERE doi.guid=$guid "
-                            "MERGE (aws:awsDownload {url: $url, fileFormat: $fileFormat}) "
-                            "MERGE (doi)-[:download]->(aws) "
-                            "RETURN aws",
-                            guid = guid,
-                            url = aws_encrypted,
-                            fileFormat = fileFormat)
-
-
-
-                aws_node = aws_record.single().data().get('aws')
-                aws_prop = dict(aws_node.items())
-                downloads.update({'aws':aws_prop })
-
-
-            if gpc_location is not None:
-                gpc_encrypted = encrypt(gpc_location, GLOBAL_CIPHER).decode()
-
-                # post gpc download attatch to the 
-                gpc_record = tx.run(
-                    "MATCH (doi:Dataset) WHERE doi.guid=$guid "
-                    "MERGE (gpc:gpcDownload {url: $url, fileFormat: $fileFormat}) "
-                    "MERGE (doi)-[:download]->(gpc) "
-                    "RETURN gpc",
-                    guid = guid,
-                    url = gpc_encrypted,
-                    fileFormat = fileFormat
+            if resourceType == "aws":
+                dl_record = tx.run(
+                "MERGE (dl:Download:awsResource {url: $url, fileFormat: $fileFormat})<-[:download]-(ds:Dataset {guid: $guid}) "
+                    "RETURN dl ",
+                    guid = datasetGuid,
+                    fileFormat = fileFormat,
+                    url = location 
                     )
 
-            # for every checksum attatch to file
-            for checksum in checksum_list:
+            if resourceType == "gpc":
+                dl_record = tx.run(
+                "MERGE (dl:Download:gpcResource {url: $url, fileFormat: $fileFormat})<-[:download]-(ds:Dataset {guid: $guid}) "
+                "RETURN dl",
+                        guid = datasetGuid,
+                        fileFormat = fileFormat,
+                        url = location
+                        )
+
+            dl_node = dl_record.single().data().get('cs')
+            
+            dl_data = { 
+                    'id': dl_node.id,
+                    'labels': list(dl_node.labels),
+                    'properties': dict(dl_node.items())
+                    }
+
+            cs_nodes = []
+            for checksum in checksumList:
                 id_type= checksum.get('@type')
                 method = checksum.get('name')
                 value = checksum.get('value')
 
-                # attatch to aws downloads
-                tx.run(
-                    "MATCH (doi:Dataset)-[:download]->(aws:awsDownload) "
-                    "WHERE doi.guid = $guid "
-                    "MERGE (cs:Checksum {method: $method, value: $value}) "
-                    "MERGE (aws)-[:checksum]->(cs) ",
-                    guid = guid,
+                cs_record = tx.run(
+                "MERGE (cs:Checksum {method: $method, value: $value})<-[:checksum]-(dl:Download {url: $url, fileFormat: $fileFormat}) "
+                "RETURN cs " ,
+                    fileFormat = fileFormat,
+                    url = location,
+                    guid = datasetGuid,
                     method = method,
                     value = value
-                    )
-               
-                # attatch to gpc downloads
-                tx.run(
-                    "MATCH (doi:Doi:Dataset)-[:download]->(gpc:gpcDownload) "
-                    "WHERE doi.guid = $guid "
-                    "MERGE (cs:Checksum {method: $method, value: $value}) "
-                    "MERGE (gpc)-[:checksum]->(cs) ",
-                    guid = guid,
-                    method = method,
-                    value = value
-                    )
-     
-    
-    neo_driver.close()    
+                    ) 
 
-    
+                cs_node = cs_record.single().data().get('cs')
+                
+                cs_data = { 
+                        'id': cs_node.id,
+                        'labels': list(cs_node.labels),
+                        'properties': dict(cs_node.items())
+                        }
+
+                cs_nodes.append(cs_data)
+
+    response = {
+            'download': dl_data,
+            'checksums': cs_nodes
+            }
+
+    return response
+
+
+@celery.task(name="get_download")
+def getDownloads(guid, resourceType):
+    ''' Return all download data for a specific resourceType
+    '''
+    # start neo driver
+    neo_driver = GraphDatabase.driver(uri = NEO_URI, auth = (NEO_USER, NEO_PASSWORD) ) 
+    with neo_driver.session() as session:
+        with session.begin_transaction() as tx:
+
+            # check resource type
+            if resourceType == "aws":
+                cs_query = tx.run(
+                        "MATCH (data {guid: $guid})-[*]->(dl:Download:awsResource)-[:checksum]->(cs) "
+                        "RETURN DISTINCT cs",
+                        guid = guid
+                        )
+
+                dl_query = tx.run(
+                        "MATCH (data {guid: $guid})-[*]->(dl:Download:awsResource)-[:checksum]->(cs) "
+                        "RETURN DISTINCT dl",
+                        guid = guid
+                        )
+
+            if resourceType == "gpc":
+                cs_query = tx.run(
+                        "MATCH (data {guid: $guid})-[*]->(dl:Download:gpcResource)-[:checksum]->(cs) "
+                        "RETURN DISTINCT cs",
+                        guid = guid
+                        )
+
+                dl_query = tx.run(
+                        "MATCH (data {guid: $guid})-[*]->(dl:Download:gpcResource)-[:checksum]->(cs) "
+                        "RETURN DISTINCT dl",
+                        guid = guid
+                        )
+
+        cs_records = cs_query.data()
+        dl_records = dl_query.data()
+
+        downloads = [record.get('dl').properties for record in dl_records]
+        checksums = [record.get('cs').properties for record in cs_records]
+
+        neo_driver.close()
+
+        response = {
+                'downloads': downloads,
+                'checksums': checksums
+                }
+
+        return response
+
+
+
 @celery.task(name="post_neo_author")
 def postNeoAuthor(author, guid):
     ''' Add Author node to database with relationship to doi
@@ -368,24 +385,31 @@ def postNeoAuthor(author, guid):
             if author.get('@type') == "Person":
                 # try later to get orchid identifier
                 auth_record = tx.run(
-                        "MATCH (doi) WHERE doi.guid = $guid "
-                        "MERGE (per:Person:Author {name: $name}) "
-                        "MERGE (per)-[:AuthorOf]->(doi) "
+                        "MERGE (per:Person:Author {name: $name})-[:AuthorOf]->(doi {guid: $guid} ) "
                         "RETURN per",
                         guid = guid,
                         name= author_name
                         )
 
             if author.get('@type') == "Organization":
-                auth_record = tx.run( "MATCH (doi) WHERE doi.guid = $guid " 
-                        "MERGE (per:Org:Author {name: $name}) "
-                        "MERGE (per)-[:AuthorOf]->(doi)"
+                auth_record = tx.run( 
+                        "MERGE (per:Org:Author {name: $name})-[:AuthorOf]->(doi {guid: $guid})"
                         "RETURN per",
                         guid= guid,
                         name= author_name
                         )
 
     neo_driver.close()
+
+    auth_node = auth_record.single().data().get('per')
+
+    response = {
+            'id': auth_node.id,
+            'lables': list(auth_node.labels),
+            'properties': dict(auth_node.items())
+            }
+
+    return response
 
 
 @celery.task(name="post_neo_funder")
@@ -404,9 +428,7 @@ def postNeoFunder(funder, guid):
         with session.begin_transaction() as tx:
             if funder_id is not None and funder_name is not None:        
                 funder_record = tx.run( 
-                        "MATCH (doi) WHERE doi.guid = $guid "
-                        "MERGE (fund:Funder:Org {name: $name, guid: $fundguid}) "
-                        "MERGE (fund)-[:FunderOf]->(doi) "
+                        "MERGE (fund:Funder:Org {name: $name, guid: $fundguid})-[:FunderOf]->(doi {guid: $guid} ) "
                         "RETURN fund",
                         guid = guid,
                         fundguid = funder_id,
@@ -414,22 +436,23 @@ def postNeoFunder(funder, guid):
                         )
             else:
                 funder_record = tx.run( 
-                        "MATCH (doi) WHERE doi.guid = $guid "
-                        "MERGE (fund:Funder:Org {name: $name}) "
-                        "MERGE (fund)-[:FunderOf]->(doi) "
+                        "MERGE (fund:Funder:Org {name: $name})-[:FunderOf]->(doi {guid: $guid}) "
                         "RETURN fund",
                         guid = guid,
                         name = funder_name
                         )
+    neo_driver.close()
 
     funder_node = funder_record.single().data().get('fund')
 
+    response = {
+            'id': funder_node.id,
+            'lables': list(funder_node.labels),
+            'properties': dict(funder_node.items())
+            }
 
-    neo_driver.close()
+    return response
 
-    return dict(funder_node.items())
-
-#================================
 
 
 

@@ -32,9 +32,11 @@ services:
       links:
       - redis-cache
 
+   # expose for celery testing 
    redis-cache:
       image: redis
-
+      ports:
+      - '6379:6379'
    neo-cache:
       image: neo4j
       ports:

@@ -13,4 +13,4 @@ RUN pip3 install -r requirements.txt
 COPY cel.py .
 
 #CMD ["ls"]
-ENTRYPOINT ["celery", "-A",  "cel",  "worker"]
+ENTRYPOINT ["celery", "-A",  "cel",  "worker", "--loglevel", "info"]

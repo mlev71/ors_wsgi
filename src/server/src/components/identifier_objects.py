@@ -108,70 +108,9 @@ class CoreMetadata():
         return  {'aws': aws_dict, 'gpc': gpc_dict }
        
 
-class DataCatalog(CoreMetadata):
-    required_keys = set(['@id', '@type', 'name','url'])
-    endpoint = "https://ezid.cdlib.org/id/"
-    auth = (EZID_USER, EZID_PASSWORD)
-
-
-    def postAPI(self):
-        ''' Interface for minting all new identifiers 
-
-        TODO should return some information about the del_task
-
-        '''
-
-        # make sure all required keys are present
-        # assert set(self.data.keys()).issuperset(self.required_keys) 
-
-
-        # determine endpoint 
-        target = "".join([self.endpoint, self.data.get('@id',None) ]) 
-
-
-        # remove the cloud location keys if they are in the payload
-        #if data.get('contentUrl') is not None:
-            # encrypt cloud locations
-            #data.pop('contentUrl')
-
-        # format payload
-        payload = profileFormat(flatten(self.data))
-        payload.update(self.options)            
-
-
-        # add put commmand to task queue
-        submission_task= put_task.delay(target=target,payload=payload, user=self.auth[0], password=self.auth[1])
-
-        # if the time to live is set, delete in that amount of time
-        if self.ttl is not None:
-            del_task = delete_task.apply_async(
-                    (target, self.auth[0], self.auth[1]),
-                    countdown =self.ttl 
-                    )
-
-        return submission_task
-
-
-    def postNeo(self):
-        ''' Post to Neo database
-        '''
-
-        with self.neo_driver.driver.session() as session:
-            with session.begin_transaction() as tx:
-                node = tx.run(
-                        "MERGE (d:dataCatalog {guid: $guid, name: $name, url: $url, type: 'DataCatalog'} ) "
-                        "RETURN properties(d)" ,
-                       guid=self.data.get('@id', None),
-                       name=self.data.get('name', None),
-                       url=self.data.get('url', None)
-                      )
-                node_data = node.data()
-                return node_data[0].get('properties(d)', None)
-
-
 class Ark(CoreMetadata):
-    required_keys = set(['@id', 'identifier', 'url', 'name','author','contentUrl'])
-    # removed 'includedInDataCatalog', dateCreated
+    required_keys = set(['@id', 'identifier', 'url', 'name','author'])
+    # removed 'includedInDataCatalog', dateCreated, 'contentUrl'
     optional_keys = set(['@type', 'expires'])
     endpoint = "https://ezid.cdlib.org/id/"
     auth = (EZID_USER, EZID_PASSWORD)
@@ -211,10 +150,39 @@ class Ark(CoreMetadata):
     def postNeo(self):
         ''' Post to Neo database
         '''
-        postArk(self.data)
+        ark_guid = self.data.get('@id')
+        ark_type = self.data.get('@type')
+        author = self.data.get('author')
+        funder = self.data.get('funder')
+
+        if ark_type == "Dataset":
+            content = self.data.get('contentUrl', 'None')        
+            file_format = self.data.get('fileFormat', 'None') 
+
+        # post the Doi as a node
+        ark_task = postNeoArk.delay(self.data)
+
+        # add authors
+        if isinstance(author,dict):
+            author_task = postNeoAuthor.delay(author, ark_guid)
+
+        if isinstance(author,list):
+            author_task = [postNeoAuthor.delay(auth, ark_guid) for auth in author]
 
 
-                
+        # add funders
+        if isinstance(funder,dict):
+            funder_task = postNeoFunder.delay(funder, ark_guid)
+
+        if isinstance(funder, list):
+            funder_task =[postNeoFunder.delay(funder_elem,ark_guid) for funder_elem in funder] 
+       
+        # if its a dataset add all downloads and checksums
+        if ark_type == "Dataset":
+            checksum_list = list(filter(lambda x: isinstance(x,dict), self.data.get('identifier'))) 
+            download_task = postNeoDownloads.delay(content, checksum_list, file_format, ark_guid)
+
+  
 class Doi(CoreMetadata): 
     required_keys = set(['@id', '@type', 'identifier', 
                         'url', 'name', 'author',
@@ -232,7 +200,7 @@ class Doi(CoreMetadata):
 
         api_response = requests.get(
                 url = self.endpoint+'metadata/'+self.guid,
-                auth = self.auth
+                auth = requests.auth.HTTPBasicAuth(self.auth[0], self.auth[1])
                 )
 
         if api_response.status_code == 404:
@@ -276,6 +244,22 @@ class Doi(CoreMetadata):
 
         return full_response
  
+
+    def importAPI(self):
+        api_response = self.getAPI()
+        self.data=api_response
+
+        obj.postNeo()
+
+        response_message = {"cache": {"imported": GUID} }
+
+        return Response(
+                status = 201,
+                response = json.dumps(response_message),
+                mimetype= 'application/json'
+                )
+
+
     def deleteAPI(self): 
         doi = self.guid
 
@@ -289,16 +273,59 @@ class Doi(CoreMetadata):
                 }
         return response_dict
 
+
     def postNeo(self):
         ''' Post Doi to Neo database  
         ''' 
         
-        postDoi(self.data)
+        doi_guid = self.data.get('@id')
+        doi_type = self.data.get('@type')
+        author = self.data.get('author')
+        funder = self.data.get('funder')
+
+        if doi_type == "Dataset":
+            content = self.data.get('contentUrl')        
+            file_format = self.data.get('fileFormat') 
+
+        # post the Doi as a node
+        doi_task = postNeoDoi.delay(self.data)
+        assert doi_task.state != 'FAILURE'
+
+        # add authors
+        if isinstance(author,dict):
+            author_task = postNeoAuthor.delay(author, doi_guid)
+            assert author_task.state != 'FAILURE'
+
+        if isinstance(author,list):
+            author_task = [postNeoAuthor.delay(auth, doi_gid) for auth in author]
+            assert author_task.state != 'FAILURE'
+
+
+        # add funders
+        if isinstance(funder,dict):
+            funder_task = postNeoFunder.delay(funder, doi_guid)
+            assert funder_task.state != 'FAILURE'
+
+        if isinstance(funder, list):
+            funder_task =[postNeoFunder.delay(funder_elem,doi_guid) for funder_elem in funder] 
+            assert funder_task.state != 'FAILURE'
+       
+        # if its a dataset add all downloads and checksums
+        if doi_type == "Dataset":
+            checksum_list = list(filter(lambda x: isinstance(x,dict), self.data.get('identifier'))) 
+            download_task = postNeoDownloads.delay(content, checksum_list,file_format, doi_guid)
+            assert download_task.state != 'FAILURE'
+
+
 
 
     def getNeo(self):
-        ''' Decrypt the AWS location
+        ''' Query the Neo Cache
+
+        Decrypt the Cloud Locations 
         '''
+        pass
+
 
 
 class CompactId(CoreMetadata):

@@ -22,10 +22,6 @@ from app.components.neo_helpers import *
 
 app = Flask('ors', template_folder='app/templates')
 
-# a secret key is required for sessions
-Flask.secret_key = 'gdbcvA5K+3FmlmG0Ss8YMnPiwaABVieYqJ7neBv1raI=kiapsdf'
-
-
 app.config['Debug'] = False
 app.config['TEMPLATES_AUTO_RELOAD'] = False
 app.config['Testing'] = False
@@ -101,114 +97,6 @@ def logout():
         '&redirect_name=Globus Example App')
 
     return redirect(globus_logout_url)
-
-
-########################################################
-#                      Data Catalog                    #
-########################################################
-@app.route('/dc/put', methods = ['PUT'])
-@auth_required
-def MintDC():
-    payload, options =  parse_payload(json.loads(request.data), request.args) 
-    obj = DataCatalog(data=payload, options=options)
-
-    neo_response = obj.postNeo()
-    api_async_response = obj.postAPI() # is now an AysncResult object from celery
-
-    response_dict = api_async_response.get()
-    response_message = {
-            "api": {"status": response_dict.get('status_code'), "messsage": response_dict.get('content')},
-            "cache": {"created": neo_response}
-            }
-
-    return Response(
-            status = response_dict.get('status_code'),
-            response = json.dumps(response_message)
-            )
-
-@app.route('/dc/delete/<path:GUID>', methods=['DELETE'])
-@auth_required
-def DeleteDC(GUID):
-    ''' Delete Identifier from EZID and Cache
-    '''
-    dc = DataCatalog(guid=GUID)
-
-    # adds removal to 
-    api_async_response = dc.deleteAPI()
-    response_dict = api_async_response.get()
-
-    # removes from cache
-    removed_data = dc.deleteCache(GUID)
-
-    response_message = {
-            "cache": {"metadata": removed_data, "message": "Removed from cache"},
-            "api": {"status_code": response_dict.get('status_code'), "message": response_dict.get('content')}
-                }
-
-    return Response(
-            status=201,
-            response = json.dumps(response_message)
-            )
-
-
-@app.route('/dc/get/<path:GUID>', methods = ['GET'])
-@auth_required
-def GetDC(GUID):
-    ''' Resolves object from Endpoint and returns JSON-LD 
-    '''
-    endpoint = "https://ezid.cdlib.org/id/"+GUID
-    api_response = requests.get(url = endpoint)
-
-    if api_response.status_code != 200:
-        return Response(
-                status = 404,
-                response = json.dumps({'api': api_response.content.decode('utf-8')})
-                )
-
-    else:
-        payload = str(api_response.content.decode('utf-8'))
-        final_payload = formatJson(unroll(removeProfileFormat(ingestAnvl(payload))))
-
-        return Response(response = json.dumps(final_payload))
-
-
-@app.route('/dc/landing/<path:GUID>', methods = ['GET'])
-def GetDCLandingPage(GUID): 
-    ''' Return Landing Page 
-    '''
-    endpoint = "https://ezid.cdlib.org/id/"+GUID
-    api_response = requests.get(url = endpoint)
-    payload = str(api_response.content.decode('utf-8'))
-
-
-    template_data = unroll(removeProfileFormat(ingestAnvl(payload)))
-    template_data = formatJson(template_data)
-
-    return render_template('DataCatalog.html', data = template_data)
-
-
-@app.route('/dc/import/<path:GUID>', methods = ['GET'])
-@auth_required
-def ImportDC(GUID):
-    ''' Attempt to import the data from EZID
-    '''
-    api_response = requests.get(url = "https://ezid.cdlib.org/id/"+GUID)
-
-    # format the payload 
-    payload = str(api_response.content.decode('utf-8'))
-    final_payload = formatJson(unroll(removeProfileFormat(ingestAnvl(payload))))
-
-    # read into DC interface
-    obj = DataCatalog(data=final_payload, guid=GUID)  
-    post = obj.postNeo()
-
-    response_message = {"cache": {"imported": post} }
-
-    return Response(
-            status = 201,
-            response = json.dumps(response_message),
-            mimetype= 'application/json'
-            )
 
 
 ##########################################################
@@ -337,10 +225,10 @@ def MintDoi():
     except MissingKeys as err:
         return err.output()
 
-    
+    obj.postNeo()
+
     response_dict = obj.postAPI()
 
-    obj.postNeo()
 
     #response_dict = api_async_response.get()
     #api_async_response = obj.postAPI()
@@ -363,12 +251,10 @@ def DeleteDoi(GUID):
     #api_async_response = doi.deleteAPI()
     #response_dict = api_async_response.get()
 
-    neo_response = doi.neo_driver.deleteCache(GUID)
-
+    neo_task = deleteNeoByGuid.delay(GUID)
     response_dict = doi.deleteAPI()
 
     response_message = {
-            "cache": {"metadata": neo_response, "message": "Removed from cache"},
             "api": {"status_code": response_dict.get('status_code'), "message": response_dict.get('content')}
                 }
 
@@ -397,54 +283,8 @@ def GetDoiLandingPage(GUID):
 @app.route('/doi/import/<path:GUID>', methods = ['GET'])
 @auth_required
 def ImportDoi(GUID):
-    endpoint = "https://ez.test.datacite.org/id/"+GUID
-
-    api_response = requests.get(
-            url = endpoint
-            )
-
-    # format the payload 
-    payload = str(api_response.content.decode('utf-8'))
-    final_payload = formatJson(unroll(removeProfileFormat(ingestAnvl(payload))))
-
-    # read into DC interface
-    obj = Doi(data=final_payload)  
-    post = obj.postNeo()
-
-    response_message = {"cache": {"imported": post} }
-
-    return Response(
-            status = 201,
-            response = json.dumps(response_message),
-            mimetype= 'application/json'
-            )
-
-
-#############################################################
-# Cache Interfaces 
-###############################################################
-
-@app.route('/cache/get/<path:GUID>', methods = ['GET'])
-@auth_required
-def RetrieveCache(GUID):
-    neo_conn = NeoConn()
-    response_message = json.dumps(neo_conn.getCache(GUID))
-    return Response(
-           status = 200,
-           response = response_message,
-           mimetype="application/json"
-           )
-           
-@app.route('/cache/delete/<path:GUID>', methods =['DELETE'])
-@auth_required
-def DeleteCache(GUID):
-    neo_conn = NeoConn()
-    deleted_properties = neo_conn.deleteCache(GUID)
-    return Response(
-            status = 201,
-            response = json.dumps(deleted_properties),
-            mimetype="application/json"
-            )
+    doi = Doi(GUID)
+    return doi.importAPI()
 
 
 
