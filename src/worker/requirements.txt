@@ -1,3 +1,5 @@
 celery
 requests
 redis
+neo4j-driver
+pycrypto

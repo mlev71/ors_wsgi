@@ -1,5 +1,7 @@
-{% extends "layout.html" %}
+   
+   <head>
    <!--Dublin Core Embedding for Doi-->
+
         <title> Landing Page for {{ data['@id'] }} </title>
 
         <!-- What DC metadata is in the page-->
@@ -33,33 +35,28 @@
             <th itemprop="name">{{data['name']}}</th>
          </tr>
 
-         <tr>
-            <th> Author </th>
-            <th itemprop="author">{{data['author']}}</th>
-         </tr>
-
-         <tr>
-            <th> Date Published </th>
-            <th itemprop="datePublished">{{data['datePublished']}}</th>
-         </tr>
-  
-         <!-- loop for all availble cloud locations --> 
-         {% for key,value in data['contentUrl'].items() %}
-         <tr>
-            <th> {{key}} Content Url  </th>
-            <th itemprop='contentUrl'> <a href="{{value}}">{{value}}</a> </th>
-         </tr> 
-         {% endfor %}
-
          <tr> 
             <th>Identifier </th>
             <th itemprop="identifier">{{data['identifier']}}</th>
          </tr> 
 
          <tr>
+            <th> Author </th>
+            <th itemprop="author">{{data['author']}}</th>
+         </tr>
+
+         <tr>
             <th> Url </th>
             <th itemprop="url">{{data['url']}}</th>
          </tr>
+
+
+         <tr>
+            <th> Date Published </th>
+            <th itemprop="datePublished">{{data['datePublished']}}</th>
+         </tr>
+  
+
 
          <tr>
             <th> Included In Data Catalog </th>

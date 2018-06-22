@@ -11,3 +11,9 @@ restart-wsgi:
 	docker-compose build wsgi
 	docker-compose up -d --no-deps wsgi
 
+restart-worker:
+	rm src/worker/cel.py
+	cp src/server/src/components/cel.py src/worker/cel.py
+	docker-compose kill worker
+	docker-compose build worker
+	docker-compose up -d --no-deps worker

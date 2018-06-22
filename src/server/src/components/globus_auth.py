@@ -3,8 +3,8 @@ import hashlib
 import string
 from functools import wraps
 import globus_sdk
-from flask import redirect, request, session
-
+from flask import redirect, request, session, url_for, Response
+from json import dumps
 
 # globus auth global constants
 CLIENT_ID = 'd0b62e2d-a6df-44cc-adf7-b4a1ead2178a'
@@ -47,73 +47,34 @@ def auth_required(f):
     @wraps(f)
     def auth_wrap(*args, **kwargs): 
 
+        # connect to auth client
+        auth_client = globus_sdk.ConfidentialAppAuthClient(CLIENT_ID, CLIENT_SECRET)
 
-        # check the session and the arguments for an access_token
-        sess_token = session.get('tokens', {}).get('auth.globus.org', {}).get('access_token')
+        # look for tokens in url as query params
+        access_token = request.args.get('access_token')
 
+        # if access_token is provided check it before refreshing
+        if access_token is not None:
+            valid_token = auth_client.oauth2_validate_token(access_token)
 
-        arg_token   = request.args.get('access_token')
+            if valid_token['active']==True:
 
-        # if the session is new attempt to read args for access_token
-        if arg_token is None and sess_token is None:
-            return redirect(url_for('login'))
-        if arg_token is not None and sess_token is None:
-            token = arg_token
-        if arg_token is None and sess_token is not None:
-            token = sess_token
-        if arg_token is not None and sess_token is not None:
-            token = arg_token 
-
-        # APP Client Used to Validate Token
-        client = globus_sdk.ConfidentialAppAuthClient(CLIENT_ID, CLIENT_SECRET)
-
-        # check token is valid
-        valid_token = client.oauth2_validate_token(token)
-
-        # check if token is valid
-        if valid_token['active']== True:
-
-            if session.get('is_authorized'):
-                return f(*args, **kwargs)
-
-            if not session.get('is_authorized'): 
-                # set up auth client to retrieve identities
-                ac = globus_sdk.AuthClient( authorizer = globus_sdk.AccessTokenAuthorizer(token) )
-
+                ac = globus_sdk.AuthClient(authorizer = globus_sdk.AccessTokenAuthorizer(access_token))
+                
+                # retrieve the email of the user
                 valid_email = validate_email(ac.oauth2_userinfo().data.get('email'))
-
                 if valid_email:
-                    session.update(is_authorized = True)
-                    return f(*args, **kwargs)
+                    return f(*args, **kwargs) 
                 else:
                     return redirect(url_for('register'))
 
-
-        if valid_token['active']!= True:
-            try:
-                # attempt to refresh token
-                new_token = ac.oauth2_refresh_token(token)
-
-            except:
+            else:
                 return redirect(url_for('login'))
-
-            # update the session
-            session.update( tokens = new_token, is_authenticated=True)
-
-            # authorize user 
-            if not session.get('is_authorized'): 
-                # set up auth client to retrieve identities
-                ac = globus_sdk.AuthClient(authorizer = globus_sdk.AccessTokenAuthorizer(new_token))
-
-                valid_email = validate_email(ac.oauth2_userinfo().data.get('email'))
-
-
-                if valid_email:
-                    session.update(is_authorized = True)
-                    return f(*args, **kwargs)
-                else:
-                    return redirect(url_for('register'))
-
+        else:
+            return Response(
+                    status = 401,
+                    response = dumps({'message': 'missing authentication parameter ?access_token cannot be blank'})
+                    )
 
     return auth_wrap
 

@@ -20,7 +20,7 @@ from app.components.helper_functions import *
 from app.components.identifier_objects import *
 from app.components.neo_helpers import *
 
-app = Flask('ors', template_folder='templates')
+app = Flask('ors', template_folder='app/templates')
 
 # a secret key is required for sessions
 Flask.secret_key = 'gdbcvA5K+3FmlmG0Ss8YMnPiwaABVieYqJ7neBv1raI=kiapsdf'
@@ -55,8 +55,9 @@ def home():
 @app.route('/login')
 def login():
     """ Run Oauth2 flow with globus auth
+
+    No sessions 
     
-    Return JWT granted by globus auth
     """ 
     client = globus_sdk.ConfidentialAppAuthClient(CLIENT_ID, CLIENT_SECRET)
 
@@ -72,31 +73,23 @@ def login():
         auth_code = request.args.get('code')
         tokens = client.oauth2_exchange_code_for_tokens(auth_code)
 
-        # update the session
-        session.update(
-                tokens = tokens.by_resource_server,
-                is_authenticated=True
-                )
+       
+        access_token = tokens.by_resource_server.get('auth.globus.org', {}).get('access_token')
 
-        # return the tokens
-        return Response( 
-                response = json.dumps(tokens.by_resource_server),
-                status = 200
-                )
+        # display access code tokens
+        return access_token
 
 @app.route('/logout')
 def logout():
     client = globus_sdk.ConfidentialAppAuthClient(CLIENT_ID, CLIENT_SECRET)
 
-    # revoke all the tokens in the session
-    for token in (token_info['access_token'] for token_info in session['tokens'].values()):
-        client.oauth2_revoke_token(token)
+    access_token = request.args.get('access_token')
 
-    for arg_token in request.args.get('access_token'):
-        client.oauth2_revoke_token(arg_token)
+    if access_token is not None:
+        client.oauth2_revoke_token(access_token)
 
-    # clear the session state
-    session.clear()
+    else:
+        return "Please provide your token to logout"
 
     redirect_uri = url_for('home', _external=True)
 
@@ -106,6 +99,7 @@ def logout():
         '?client={}'.format(CLIENT_ID) +
         '&redirect_uri={}'.format(redirect_uri) +
         '&redirect_name=Globus Example App')
+
     return redirect(globus_logout_url)
 
 
@@ -225,17 +219,21 @@ def ImportDC(GUID):
 @auth_required
 def MintArk():
     payload, options = parse_payload(json.loads(request.data), request.args)
-    obj = Ark(data=payload, options=options)
+
+    try:
+        obj = Ark(data=payload, options=options)   
+    
+    except MissingKeys as err:
+        return err.output()
 
 
-    neo_response = obj.postNeo()
-    api_async_response = obj.postAPI()
+    obj.postNeo()
 
-    response_dict = api_async_response.get()
+    api_async = obj.postAPI()
+    response_dict = api_async.get()
 
     response_message = {
-            "api": {"status": response_dict.get('status_code'), "messsage": response_dict.get('content')},
-            "cache": {"created": neo_response}
+            "api": {"status": response_dict.get('status_code'), "messsage": response_dict.get('content')}
             }
 
     return Response(
@@ -249,13 +247,12 @@ def MintArk():
 def DeleteArk(GUID):
     ark = Ark(guid=GUID)
 
-    api_async_response = ark.deleteAPI()
-    neo_response = ark.neo_driver.deleteCache(GUID)
+    api_async = ark.deleteAPI() 
+    deleteNeoByGuid.delay(GUID)
 
-    response_dict = api_async_response.get()
+    response_dict = api_async.get()
 
     response_message = {
-            "cache": {"metadata": neo_response, "message": "Removed from cache"},
             "api": {"status_code": response_dict.get('status_code'), "message": response_dict.get('content')}
             }
 
@@ -330,18 +327,26 @@ def ImportArk(GUID):
 @app.route('/doi/put', methods = ['PUT'])
 @auth_required
 def MintDoi():
-    payload, options = parse_payload(json.loads(request.data))
-    obj = Doi(payload, options)
+    ''' Posting to Neo 
+    '''
+    payload, options = parse_payload(json.loads(request.data), request.args)
 
+    try:
+        obj = Doi(data=payload, options=options)
 
-    api_async_response = obj.postAPI()
-    neo_response = obj.postNeo()
+    except MissingKeys as err:
+        return err.output()
 
-    response_dict = api_async_response.get()
+    
+    response_dict = obj.postAPI()
+
+    obj.postNeo()
+
+    #response_dict = api_async_response.get()
+    #api_async_response = obj.postAPI()
 
     response_message = {
-            "api": {"status": response_dict.get('status_code'), "messsage": response_dict.get('content')},
-            "cache": {"created": neo_response}
+            "api": {"status": response_dict.get('status_code'), "messsage": response_dict.get('content')}
             }
 
     return Response(
@@ -354,12 +359,14 @@ def MintDoi():
 @auth_required
 def DeleteDoi(GUID):
     doi = Doi(guid=GUID)
+    
+    #api_async_response = doi.deleteAPI()
+    #response_dict = api_async_response.get()
 
-    api_async_response = doi.deleteAPI()
-    neo_response = doi.deleteCache(GUID)
+    neo_response = doi.neo_driver.deleteCache(GUID)
 
+    response_dict = doi.deleteAPI()
 
-    response_dict = api_async_response.get()
     response_message = {
             "cache": {"metadata": neo_response, "message": "Removed from cache"},
             "api": {"status_code": response_dict.get('status_code'), "message": response_dict.get('content')}
@@ -374,42 +381,17 @@ def DeleteDoi(GUID):
 @app.route('/doi/get/<path:GUID>', methods = ['GET'])
 @auth_required
 def GetDoi(GUID):
-    endpoint = "https://ez.test.datacite.org/id/"+GUID
-
-    api_response = requests.get(
-            url = endpoint
-            )
-
-    if api_response.status_code == 404:
-        return Response(
-                response = json.dumps({"status":404, "message": "No record of Identifier"})
-                )
-
-    payload = str(api_response.content.decode('utf-8'))
-
-    unpacked_payload = unroll(removeProfileFormat(ingestAnvl(payload)))
-
-    final_payload = formatJson(unpacked_payload)
-    
-    return Response(
-            response = json.dumps(final_payload)
+    doi = Doi(guid=GUID)
+    return Response( 
+            response = json.dumps(doi.getAPI())
             )
 
 
 @app.route('/doi/landing/<path:GUID>', methods = ['GET'])
 def GetDoiLandingPage(GUID):
-    endpoint = "https://ez.test.datacite.org/id/"+GUID
-    api_response = requests.get( url = endpoint)
-
-    if api_response.status_code == 404:
-        return Response(
-                response = json.dumps({"status":404, "message": "No record of Identifier"})
-                )
-
-    payload = str(api_response.content.decode('utf-8'))
-    template_data = formatJson(unroll(removeProfileFormat(ingestAnvl(payload))))
- 
-    return render_template('Doi.html', data = template_data)
+    doi = Doi(guid=GUID)
+    template_data = doi.getAPI()
+    return render_template('Doi.html', data=template_data)
 
 
 @app.route('/doi/import/<path:GUID>', methods = ['GET'])
@@ -426,7 +408,7 @@ def ImportDoi(GUID):
     final_payload = formatJson(unroll(removeProfileFormat(ingestAnvl(payload))))
 
     # read into DC interface
-    obj = Doi(final_payload)  
+    obj = Doi(data=final_payload)  
     post = obj.postNeo()
 
     response_message = {"cache": {"imported": post} }
@@ -441,6 +423,7 @@ def ImportDoi(GUID):
 #############################################################
 # Cache Interfaces 
 ###############################################################
+
 @app.route('/cache/get/<path:GUID>', methods = ['GET'])
 @auth_required
 def RetrieveCache(GUID):

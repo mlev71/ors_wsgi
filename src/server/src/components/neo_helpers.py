@@ -1,5 +1,88 @@
 import os
 from neo4j.v1 import GraphDatabase
+from app.components.cel import * 
+
+
+# will become celery tasks
+# change to execution functions
+
+def postDoi(doiData):
+    ''' Contains all the logic for posting a doi
+    '''
+
+    doi_guid = doiData.get('@id')
+    doi_type = doiData.get('@type')
+    author = doiData.get('author')
+    funder = doiData.get('funder')
+
+    if doi_type == "Dataset":
+        content = doiData.get('contentUrl')        
+        file_format = doiData.get('fileFormat') 
+        assert content is not None
+        assert file_format is not None
+
+    # post the Doi as a node
+    doi_task = postNeoDoi.delay(doiData)
+
+    # add authors
+    if isinstance(author,dict):
+        author_task = postNeoAuthor.delay(author, doi_guid)
+
+    if isinstance(author,list):
+        author_task = [postNeoAuthor.delay(auth, doi_gid) for auth in author]
+
+
+    # add funders
+    if isinstance(funder,dict):
+        funder_task = postNeoFunder.delay(funder, doi_guid)
+
+    if isinstance(funder, list):
+        funder_task =[postNeoFunder.delay(funder_elem,doi_guid) for funder_elem in funder] 
+   
+    # if its a dataset add all downloads and checksums
+    if doi_type == "Dataset":
+        checksum_list = list(filter(lambda x: isinstance(x,dict), doiData.get('identifier'))) 
+        download_task = postNeoDownloads.delay(content, checksum_list,file_format, doi_guid)
+
+
+def postArk(arkData):
+    ''' Adds task to task queue
+    '''
+
+    ark_guid = arkData.get('@id')
+    ark_type = arkData.get('@type')
+    author = arkData.get('author')
+    funder = arkData.get('funder')
+
+    if ark_type == "Dataset":
+        content = arkData.get('contentUrl', 'None')        
+        file_format = arkData.get('fileFormat', 'None') 
+
+    # post the Doi as a node
+    ark_task = postNeoArk.delay(arkData)
+
+
+    # add authors
+    if isinstance(author,dict):
+        author_task = postNeoAuthor.delay(author, ark_guid)
+
+    if isinstance(author,list):
+        author_task = [postNeoAuthor.delay(auth, ark_gid) for auth in author]
+
+
+    # add funders
+    if isinstance(funder,dict):
+        funder_task = postNeoFunder.delay(funder, ark_guid)
+
+    if isinstance(funder, list):
+        funder_task =[postNeoFunder.delay(funder_elem,ark_guid) for funder_elem in funder] 
+   
+    # if its a dataset add all downloads and checksums
+    if ark_type == "Dataset":
+        checksum_list = list(filter(lambda x: isinstance(x,dict), arkData.get('identifier'))) 
+        download_task = postNeoDownloads.delay(content, checksum_list,file_format, ark_guid)
+
+
 
 
 class NeoConn():
@@ -9,7 +92,7 @@ class NeoConn():
     user = os.environ.get('NEO_USER')
     password = os.environ.get('NEO_PASSWORD')
                   
-    def __init__(self, local=True):
+    def __init__(self):
         ''' Establish Driver Connection with Neo4j database
         '''
         self.driver = GraphDatabase.driver(uri = self.uri, auth = (self.user, self.password) )

@@ -25,6 +25,9 @@ services:
    worker:
       build: src/worker/.
       environment:
+         - NEO_USER=neo4j 
+         - NEO_PASSWORD=localtest
+         - NEO_URL=neo-cache
          - REDIS_URL=redis-cache
       links:
       - redis-cache
@@ -34,5 +37,8 @@ services:
 
    neo-cache:
       image: neo4j
+      ports:
+      - "7687:7687"
+      - "7474:7474"
       environment:
          - NEO4J_AUTH=neo4j/localtest
