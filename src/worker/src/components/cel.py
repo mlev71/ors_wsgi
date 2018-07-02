@@ -10,12 +10,12 @@ NEO_URI = "".join(["bolt://",os.environ.get('NEO_URL', 'localhost'), ":7687"])
 NEO_USER = os.environ.get('NEO_USER', 'neo4j')
 NEO_PASSWORD = os.environ.get('NEO_PASSWORD', 'localtest')
 
-REDIS_URL = os.environ.get('REDIS_URL', 'redis://localhost:6379')
+REDIS_URL = os.environ.get('REDIS_URL', 'localhost')
 
 celery = Celery(
         'cel',
-        backend= REDIS_URL, 
-        broker = REDIS_URL 
+        backend= 'redis://'+REDIS_URL+':6379',
+        broker = 'redis://'+REDIS_URL+':6379' 
         )
 
 # tasks for network requests
@@ -114,26 +114,6 @@ def reserve_doi(doi, landing_page, user, password):
             }
     return reservation_response
 
-@celery.task(name='register_media')
-def register_media(doi, media, user, password):
-    ''' Post append a media record to the doi
-    '''
-
-    target = 'https://mds.test.datacite.org/media/' + doi
-    auth = requests.auth.HTTPBasicAuth(user, password)
-
-    media_request = requests.post(
-            url = target,
-            auth = auth,
-            data = media
-            )
-
-    media_response = {
-                'status_code': media_request.status_code,
-                'content': media_request.content.decode('utf-8')
-                }
-
-    return media_response
 
 ###############
 #  NEO TASKS  #
@@ -265,32 +245,29 @@ def postNeoDoi(data):
 
 
 @celery.task(name="post_download")
-def postDownload(filename, location, checksumList, fileFormat, datasetGuid, resourceType):
+def postDownload(location, checksumList, fileFormat, datasetGuid, resourceType):
     neo_driver = GraphDatabase.driver(uri = NEO_URI, auth = (NEO_USER, NEO_PASSWORD) ) 
-
     with neo_driver.session() as session:
         with session.begin_transaction() as tx:
 
             if resourceType == "aws":
                 dl_record = tx.run(
                     "MATCH (ds:Dataset {guid: $guid})"
-                    "MERGE (dl:Download:awsResource {filename: $filename, url: $url, fileFormat: $fileFormat})<-[:download]-(ds) "
+                    "MERGE (dl:Download:awsResource {url: $url, fileFormat: $fileFormat})<-[:download]-(ds) "
                     "RETURN dl ",
                     guid = datasetGuid,
                     fileFormat = fileFormat,
-                    url = location,
-                    filename = filename
+                    url = location 
                     )
 
             if resourceType == "gpc":
                 dl_record = tx.run(
                     "MATCH (ds:Dataset {guid: $guid}) "
-                    "MERGE (dl:Download:gpcResource {filename: $filename, url: $url, fileFormat: $fileFormat})<-[:download]-(ds) "
+                    "MERGE (dl:Download:gpcResource {url: $url, fileFormat: $fileFormat})<-[:download]-(ds) "
                     "RETURN dl",
                         guid = datasetGuid,
                         fileFormat = fileFormat,
-                        url = location,
-                        filename = filename
+                        url = location
                         )
 
             dl_node = dl_record.single().data().get('dl')
@@ -329,8 +306,11 @@ def postDownload(filename, location, checksumList, fileFormat, datasetGuid, reso
 
                 cs_nodes.append(cs_data)
 
-    # no response
-    response = {'download': dl_data, 'checksums': cs_nodes}
+    response = {
+            'download': dl_data,
+            'checksums': cs_nodes
+            }
+
     return response
 
 

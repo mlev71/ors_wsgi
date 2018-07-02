@@ -32,37 +32,53 @@ app.config['Testing'] = False
 #            General                #
 #####################################
 
-@app.route('/', methods = ['GET'])
+@app.route('/home', methods = ['GET'])
 def home():
     """ Display a homepage for the Broker
 
         Describe How many arks, doi's, and data-catalogs are registered
     """
-    return render_template('home.html') 
+   # describe neo4j cache
+        # arks
+        # dois
+        # data catalogs
+  
+  # links for datasets
+
+    return "Homepage for the Broker" 
 
 
-@app.route('/globus/login')
+@app.route('/login')
 def login():
-    """ Run Oauth2 flow with globus auth 
+    """ Run Oauth2 flow with globus auth
+
+    No sessions 
+    
     """ 
     client = globus_sdk.ConfidentialAppAuthClient(CLIENT_ID, CLIENT_SECRET)
 
     client.oauth2_start_flow(redirect_uri= url_for('login', _external=True), refresh_tokens=True)
 
     if 'code' not in request.args:
+
+        # request to authenticate as a rest client
         authorize_url = client.oauth2_get_authorize_url() 
         return redirect(authorize_url)
 
     else:
         auth_code = request.args.get('code')
         tokens = client.oauth2_exchange_code_for_tokens(auth_code)
- 
+
+       
         access_token = tokens.by_resource_server.get('auth.globus.org', {}).get('access_token')
+
+        # display access code tokens
         return access_token
 
-@app.route('/globus/logout')
+@app.route('/logout')
 def logout():
     client = globus_sdk.ConfidentialAppAuthClient(CLIENT_ID, CLIENT_SECRET)
+
     access_token = request.args.get('access_token')
 
     if access_token is not None:
@@ -82,18 +98,6 @@ def logout():
 
     return redirect(globus_logout_url)
 
-
-@app.rout('/oauth/login')
-def oauth_login():
-    ''' Login using AWS cognito
-    '''
-    pass
-
-@app.route('/oauth/refresh')
-def refresh():
-    ''' 
-    '''
-    pass
 
 ##########################################################
 #                        ARK                             #

@@ -60,47 +60,23 @@
      
 
             {% if data['dateCreated'] is not none %}
-            <tr>
-               <th> Date Created </th>
-               <th itemprop="dateCreated"> {{data['dateCreated']}}</th>
-            </tr>
             {% endif %}
 
 
             {% if data['additionalType'] is not none %}
-            <tr>
-               <th> Additional Type </th>
-               <th itemprop="additionalType"> {{data['additionalType']}} </th>
-            </tr>
             {% endif %}
 
 
             {% if data['description'] is not none %}
-            <tr>
-               <th> Description </th>
-               <th itemprop="description"> {{data['description']}} </th>
-            </tr>
             {% endif %}
 
             {% if data['keywords'] is not none %}
-            <tr>
-               <th> Keywords </th>
-               <th itemprop="keywords"> {{data['keywords']}} </th>
-            </tr>
             {% endif %}
 
             {% if data['license'] is not none %}
-            <tr>
-               <th> License </th>
-               <th itemprop="license"> {{data['license']}} </th>
-            </tr>
             {% endif %}
             
             {% if data['version'] is not none %}
-            <tr>
-               <th> Version </th>
-               <th itemprop="version"> {{data['version'] </th>
-            </tr>
             {% endif %}
 
          </table>
@@ -119,7 +95,6 @@
       <!-- relationships -->
       <div id='rel_container'>
 
-         {% if data['includedInDataCatalog'] is not none or data['isBasedOn'] is not none or data['PredecessorOf'] is not none or data['successorOf'] is not none or data['hasPart'] is not none or data['isPartOf'] is not none%}
             <h2> Identifier Relationships </h2>
 
             <table>
@@ -166,9 +141,8 @@
                </tr> 
                {% endif %}
             </table>
-     
-         {% endif %}
-      </div>
+           
+         </div>
    
       <!-- funder data --> 
       {% if data['funder'] is not none %} 
@@ -176,14 +150,21 @@
          
          {% for funder in data['funder'] %}
             <table itemtype="http://schema.org/funder">
-            {% for funder_key, funder_val in funder.iteritems() $}
-               
                <tr>
-                  <th> {{funder_key}} </th>
-                  <th itemprop="{{funder_key}}"> {{funder_val}} </th>
+                  <th> Funder Name </th>
+                  <th itemprop='name'> {{funder}} </th>
                </tr>
 
-            {% endfor %}
+
+               <tr>
+                  <th> Funder Type </th>
+                  <th itemprop='@type'> {{funder}} </th>
+               </tr>
+
+               <tr>
+                  <th> Funder Id </th>
+                  <th itemprop='@id'> {{funder}} </th>
+               </tr>
             </table>
          {% endfor %}
       </div>
@@ -192,19 +173,19 @@
 
       <!-- file description metadata -->
 
-      <div id="file_container">
          {% if data['contentSize'] is not none %} 
-         
          {% endif %}
          
-         <!-- look for checksums -->  
+         <!-- look for checksums --> 
+         
+
          {% if data['fileFormat'] is not none %}
          {% endif %}
 
 
          {% if data['contentUrl'] is not none %}
          {% endif %}
-      </div>
+
 
 
 

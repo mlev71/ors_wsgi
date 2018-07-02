@@ -37,11 +37,6 @@ def parse_payload(payload, request_args):
                 "_target": "https://ors.datacite.org/"+payload.get('@id'),
                 "_status": "reserved"
                 } 
-
-        # if url is specified in the metadata
-        #if payload.get('url') is not None:
-        #    default_options['_target']=payload.get('url')
-
         return payload, default_options
 
     if payload_metadata is not None and payload_options is None:
@@ -49,11 +44,6 @@ def parse_payload(payload, request_args):
                 "_target": "https://ors.datacite.org/"+payload.get('metadata').get('@id'),
                 "_status": "reserved"
                 } 
-
-        # if url is specified in the metadata
-        #if payload_metadata.get('url') is not None:
-        #    default_options['_target']=payload_metadata.get('url')
-
         return payload_metadata, default_options
 
     if payload_metadata is None and payload_options is not None:
@@ -67,7 +57,7 @@ def parse_payload(payload, request_args):
             assert "_status" in payload_options.keys()
             return payload_metadata, payload_options
         except:
-            return payload_metadata, defualt_options
+            return payload_metadta, defualt_options
 
 
 ######################
@@ -112,7 +102,6 @@ def formatJson(anvl):
 
     return anvl
 
-
 def removeProfileFormat(anvlDict):
     '''Remove NIHdc from every key
     '''
@@ -121,7 +110,6 @@ def removeProfileFormat(anvlDict):
         key = re.sub("NIHdc.", "", key)
         output[key] = value
     return output
-
 
 def unroll(anvl):
     output = {}
@@ -185,8 +173,8 @@ def flatten(anvlDict):
         
         if isinstance(value, dict):
             for subKey, subValue in value.items():
-                joined_key = ".".join([key,subKey])
-                output[joined_key] = subValue
+                temp_key = ".".join([key,subKey])
+                output[temp_key] = subValue
             
         if isinstance(value, str):
             output[key] = value
@@ -198,9 +186,9 @@ def flatten(anvlDict):
             for dict_elem in value:
                 if isinstance(dict_elem, dict):
                     for subKey, subValue in dict_elem.items():
-                        joined_key = ".".join([key, subKey])
-                        output[joined_key] = subValue
-    
+                        temp_key = ".".join([key, subKey])
+                        output[temp_key] = subValue
+                        temp_key = ""
     return output
 
 

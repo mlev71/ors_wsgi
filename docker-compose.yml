@@ -13,30 +13,41 @@ services:
    wsgi:
       build: src/server/.
       environment:
-         - NEO_USER=neo4j 
-         - NEO_PASSWORD=localtest
-         - NEO_URL=neo-cache
-         - REDIS_URL=redis-cache
+      - NEO_USER=neo4j 
+      - NEO_PASSWORD=localtest
+      - NEO_URL=neo-cache
+      - REDIS_URL=redis://redis-cache:6379
       links:
+      - neo-cache
       - redis-cache
 
    # add bagit service
 
    worker:
-      build: src/worker/.
+      build: src/server/.
       environment:
-         - NEO_USER=neo4j 
-         - NEO_PASSWORD=localtest
-         - NEO_URL=neo-cache
-         - REDIS_URL=redis-cache
+      - NEO_USER=neo4j 
+      - NEO_PASSWORD=localtest
+      - NEO_URL=neo-cache
+      - REDIS_URL=redis://redis-cache:6379
       links:
+      - neo-cache
       - redis-cache
+      entrypoint:
+         - celery
+         - -A
+         - cel  
+         - worker
+         - --loglevel
+         - info
+
 
    # expose for celery testing 
    redis-cache:
       image: redis
-      ports:
-      - '6379:6379'
+      #ports:
+      #- '6379:6379'
+
    neo-cache:
       image: neo4j
       ports:

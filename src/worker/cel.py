@@ -6,23 +6,16 @@ import re, requests, os, json
 from neo4j.v1 import GraphDatabase
 import neo4j.v1
 
-
-
-
 NEO_URI = "".join(["bolt://",os.environ.get('NEO_URL', 'localhost'), ":7687"])
 NEO_USER = os.environ.get('NEO_USER', 'neo4j')
 NEO_PASSWORD = os.environ.get('NEO_PASSWORD', 'localtest')
 
-
-REDIS_URL = os.environ.get('REDIS_URL', 'localhost')
-
-
-
+REDIS_URL = os.environ.get('REDIS_URL', 'redis://localhost:6379')
 
 celery = Celery(
         'cel',
-        backend= 'redis://'+REDIS_URL+':6379',
-        broker = 'redis://'+REDIS_URL+':6379' 
+        backend= REDIS_URL, 
+        broker = REDIS_URL 
         )
 
 # tasks for network requests
@@ -122,11 +115,9 @@ def reserve_doi(doi, landing_page, user, password):
     return reservation_response
 
 
-
-##################
-# NEO CACHE TASKS#
-##################
-
+###############
+#  NEO TASKS  #
+###############
 
 #   Delete by Guid
 @celery.task(name="delete_neo_guid")
@@ -135,11 +126,9 @@ def deleteNeoByGuid(guid):
     with neo_driver.session() as session:
         with session.begin_transaction() as tx:
             tx.run(
-                    "MATCH (n {guid: $guid}) DETACH DELETE n "
-                    "RERTURN n ",
+                    "MATCH (n {guid: $guid}) DETACH DELETE n ",
                     guid = guid
                     )
-
 
 
 # Put Ark
@@ -156,34 +145,35 @@ def postNeoArk(data):
     name = data.get('name')
     doi_type = data.get('@type')
     includedInDataCatalog = data.get('includedInDataCatalog')
-    datePublished = data.get('datePublished', 'None') 
+    dateCreated = data.get('dateCreated', 'None') 
 
     with neo_driver.session() as session:
         with session.begin_transaction() as tx:
             if doi_type == "DataCatalog":
                 assert name is not None
                 assert guid is not None
-                assert datePublished is not None
+                assert dateCreated is not None
                 ark_record = tx.run(
-                        "MERGE (ark:Ark:DataCatalog {name: $name, guid:$guid, datePublished: $datePub}) "
+                        "MERGE (ark:Ark:DataCatalog {name: $name, guid:$guid, dateCreated: $dateCreated}) "
                         "RETURN ark ",
                         name = name,
                         guid = guid,
-                        datePub = datePublished
+                        dateCreated = dateCreated
                     )
 
             if doi_type == "Dataset":
                 assert name is not None
                 assert guid is not None
-                assert datePublished is not None
+                assert dateCreated is not None
                 assert includedInDataCatalog is not None
                 ark_record = tx.run(
-                        "MERGE (ark:Ark:Dataset {name: $name, guid: $guid, datePublished: $datePub})-[:includedInDataCatalog]->(dc:DataCatalog {guid: $dcguid) "
+                        "MATCH (dc:DataCatalog {guid: $dcguid})"
+                        "MERGE (ark:Ark:Dataset {name: $name, guid: $guid, dateCreated: $dateCreated})-[:includedInDataCatalog]->(dc)"
                         "RETURN ark",
                         dcguid = includedInDataCatalog,
                         name = name,
                         guid = guid,
-                        datePub = datePublished
+                        dateCreated = dateCreated
                         )
 
 
@@ -234,7 +224,8 @@ def postNeoDoi(data):
                 assert datePublished is not None
                 assert includedInDataCatalog is not None
                 doi_record = tx.run(
-                        "MERGE (doi:Doi:Dataset {name: $name, guid: $guid, datePublished: $datePub})-[:includedInDataCatalog]->(dc {guid: $dcguid} ) "
+                        "MATCH (dc:DataCatalog {guid: $dcguid} ) "
+                        "MERGE (doi:Doi:Dataset {name: $name, guid: $guid, datePublished: $datePub})-[:includedInDataCatalog]->(dc)"
                         "RETURN doi",
                         dcguid = includedInDataCatalog,
                         name = name,
@@ -254,30 +245,36 @@ def postNeoDoi(data):
 
 
 @celery.task(name="post_download")
-def postDownload(location, checksumList, fileFormat, datasetGuid, resourceType):
+def postDownload(filename, location, checksumList, fileFormat, datasetGuid, resourceType):
     neo_driver = GraphDatabase.driver(uri = NEO_URI, auth = (NEO_USER, NEO_PASSWORD) ) 
+
+
     with neo_driver.session() as session:
         with session.begin_transaction() as tx:
 
             if resourceType == "aws":
                 dl_record = tx.run(
-                "MERGE (dl:Download:awsResource {url: $url, fileFormat: $fileFormat})<-[:download]-(ds:Dataset {guid: $guid}) "
+                    "MATCH (ds:Dataset {guid: $guid})"
+                    "MERGE (dl:Download:awsResource {filename: $filename, url: $url, fileFormat: $fileFormat})<-[:download]-(ds) "
                     "RETURN dl ",
                     guid = datasetGuid,
                     fileFormat = fileFormat,
-                    url = location 
+                    url = location,
+                    filename = filename
                     )
 
             if resourceType == "gpc":
                 dl_record = tx.run(
-                "MERGE (dl:Download:gpcResource {url: $url, fileFormat: $fileFormat})<-[:download]-(ds:Dataset {guid: $guid}) "
-                "RETURN dl",
+                    "MATCH (ds:Dataset {guid: $guid}) "
+                    "MERGE (dl:Download:gpcResource {filename: $filename, url: $url, fileFormat: $fileFormat})<-[:download]-(ds) "
+                    "RETURN dl",
                         guid = datasetGuid,
                         fileFormat = fileFormat,
-                        url = location
+                        url = location,
+                        filename = filename
                         )
 
-            dl_node = dl_record.single().data().get('cs')
+            dl_node = dl_record.single().data().get('dl')
             
             dl_data = { 
                     'id': dl_node.id,
@@ -292,8 +289,10 @@ def postDownload(location, checksumList, fileFormat, datasetGuid, resourceType):
                 value = checksum.get('value')
 
                 cs_record = tx.run(
-                "MERGE (cs:Checksum {method: $method, value: $value})<-[:checksum]-(dl:Download {url: $url, fileFormat: $fileFormat}) "
-                "RETURN cs " ,
+                    "MATCH (dl:Download {url: $url, fileFormat: $fileFormat})"
+                    "MERGE (cs:Checksum {method: $method, value: $value}) "
+                    "MERGE (cs)<-[:checksum]-(dl) "
+                    "RETURN cs " ,
                     fileFormat = fileFormat,
                     url = location,
                     guid = datasetGuid,
@@ -311,11 +310,8 @@ def postDownload(location, checksumList, fileFormat, datasetGuid, resourceType):
 
                 cs_nodes.append(cs_data)
 
-    response = {
-            'download': dl_data,
-            'checksums': cs_nodes
-            }
-
+    # no response
+    response = {'download': dl_data, 'checksums': cs_nodes}
     return response
 
 
@@ -367,7 +363,6 @@ def getDownloads(guid, resourceType):
                 'downloads': downloads,
                 'checksums': checksums
                 }
-
         return response
 
 
@@ -385,7 +380,8 @@ def postNeoAuthor(author, guid):
             if author.get('@type') == "Person":
                 # try later to get orchid identifier
                 auth_record = tx.run(
-                        "MERGE (per:Person:Author {name: $name})-[:AuthorOf]->(doi {guid: $guid} ) "
+                        "MATCH (doi {guid: $guid} )"
+                        "MERGE (per:Person:Author {name: $name})-[:AuthorOf]->(doi) "
                         "RETURN per",
                         guid = guid,
                         name= author_name
@@ -393,29 +389,26 @@ def postNeoAuthor(author, guid):
 
             if author.get('@type') == "Organization":
                 auth_record = tx.run( 
-                        "MERGE (per:Org:Author {name: $name})-[:AuthorOf]->(doi {guid: $guid})"
+                        "MATCH (doi {guid: $guid}) " 
+                        "MERGE (per:Org:Author {name: $name})-[:AuthorOf]->(doi) "
                         "RETURN per",
                         guid= guid,
                         name= author_name
                         )
 
     neo_driver.close()
-
     auth_node = auth_record.single().data().get('per')
-
     response = {
             'id': auth_node.id,
             'lables': list(auth_node.labels),
             'properties': dict(auth_node.items())
             }
-
     return response
 
 
 @celery.task(name="post_neo_funder")
 def postNeoFunder(funder, guid):
     ''' Add Funder node to database
-
     assuming they are all organizations
     '''
 
@@ -428,7 +421,8 @@ def postNeoFunder(funder, guid):
         with session.begin_transaction() as tx:
             if funder_id is not None and funder_name is not None:        
                 funder_record = tx.run( 
-                        "MERGE (fund:Funder:Org {name: $name, guid: $fundguid})-[:FunderOf]->(doi {guid: $guid} ) "
+                        "MATCH (doi {guid: $guid}) "
+                        "MERGE (fund:Funder:Org {name: $name, guid: $fundguid})-[:FunderOf]->(doi)"
                         "RETURN fund",
                         guid = guid,
                         fundguid = funder_id,
@@ -436,7 +430,8 @@ def postNeoFunder(funder, guid):
                         )
             else:
                 funder_record = tx.run( 
-                        "MERGE (fund:Funder:Org {name: $name})-[:FunderOf]->(doi {guid: $guid}) "
+                        "MATCH (doi {guid: $guid}) "
+                        "MERGE (fund:Funder:Org {name: $name})-[:FunderOf]->(doi) "
                         "RETURN fund",
                         guid = guid,
                         name = funder_name
@@ -454,7 +449,7 @@ def postNeoFunder(funder, guid):
     return response
 
 
-
+# ANVL PROCESSESING
 
 def escape(s):
     return re.sub("[%:\r\n]", lambda c: "%%%02X" % ord(c.group(0)), s)
@@ -464,9 +459,4 @@ def outputAnvl(anvlDict):
     ''' Encode all objects into strings, lists into strings
     '''
     return "\n".join("%s: %s" % (escape(str(name)), escape(str(value) )) for name,value in anvlDict.items()).encode('utf-8')
-
-
-if __name__=="__main__":
-    print(delete_task.name)
-    print(put_task.name)
 

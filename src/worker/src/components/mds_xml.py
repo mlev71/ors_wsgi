@@ -19,12 +19,14 @@ properResourceTag ='<resource xmlns:xsi="http://www.w3.org/2001/XMLSchema-instan
 
 
 
+
 ##########################
 #   Convert To XML       #
 ##########################
 
 def convertDoiToXml(doi):
     return outputDataciteXML(doi).decode('utf-8').replace('<resource>', properResourceTag)
+
 
 
 def outputDataciteXML(doi_json):
@@ -52,35 +54,26 @@ def outputDataciteXML(doi_json):
  
 
 
-
-    # add landing page 
-    # url = doi_json.get('url')
-    #if url is not None:
-    #etree.SubElement(related_identifiers, "relatedIdentifier", relatedIdentifierType="URL", 
-    #                     relationType= "IsDocumentedBy")._setText(url)
-
-
-    # add included in data catalog
     related_identifiers = etree.SubElement(resource, "relatedIdentifiers")
+
+    # add url homepage 
+    url = doi_json.get('url')
+
+    if url is not None:
+        etree.SubElement(related_identifiers, "relatedIdentifier", relatedIdentifierType="URL", 
+                         relationType= "IsDocumentedBy")._setText(url)
+
+    # add includedInDatacatalog
     dc = doi_json.get('includedInDataCatalog')
-    related_identifiers = etree.SubElement(resource, "relatedIdentifiers")
-    if isinstance(dc, str):
+    if dc is not None:
         etree.SubElement(related_identifiers, "relatedIdentifier", relatedIdentifierType="DOI",
                             relationType="IsPartOf")._setText(dc)
+
     
-    if isinstance(dc, dict):
-        # get identifier of includedInDataCatalog
-        dc_id = dc.get('@id')
-        etree.SubElement(related_identifiers, "relatedIdentifier", relatedIdentifierType="DOI",
-                            relationType="IsPartOf")._setText(dc_id)
-
-
-  
-    # Content URLS added as media for doi
     # contentUrl add 
-    #contentUrl = doi_json.get('contentUrl')
-    #if contentUrl is not None: 
-    #    parseCloudLocation(contentUrl, related_identifiers)
+    contentUrl = doi_json.get('contentUrl')
+    if contentUrl is not None: 
+        parseCloudLocation(contentUrl, related_identifiers)
     
     # Version
     version = doi_json.get('version')
@@ -150,6 +143,7 @@ def parseAuthors(auth, resource):
         etree.SubElement(creator, "creatorName")._setText(auth_name)
         etree.SubElement(resource, "publisher")._setText(auth_name)
     
+
 
 def parseFunder(funder,resource):
     ''' Update the etree element with the funding references if they exist
@@ -280,7 +274,6 @@ def unpackCreators(creatorsElem):
     else:
         return creator_list
 
-
 def unpackFunders(fundingReferences):
     fund_list = []
     for fundingRef in fundingReferences:
@@ -327,7 +320,6 @@ def parseIds(relatedIds):
         id_obj['contentUrl'] = contentUrl
 
     return id_obj
-
 
 def unpack_xml(input_root):
     xml_dict = {}

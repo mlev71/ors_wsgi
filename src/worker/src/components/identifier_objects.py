@@ -22,30 +22,15 @@ cipher = AES.new(key, AES.MODE_CFB, iv)
 
 
 #authentication for objects
-EZID_USER = os.environ.get('EZID_USER', 'apitest')
-EZID_PASSWORD = os.environ.get('EZID_PASSWORD', 'apitest')
+#EZID_USER = os.environ.get('EZID_USER')
+#EZID_PASSWORD = os.environ.get('EZID_PASSWORD')
+EZID_USER = 'apitest'
+EZID_PASSWORD = 'apitest'
 
-DATACITE_USER = os.environ.get('DATACITE_USER', 'DATACITE.DCPPC')
-DATACITE_PASSWORD = os.environ.get('DATACITE_USER', 'Player&Chemo+segment')
-
-
-# file extension to mimetype conversions
-mimetype = {
-        ".tar": "application/x-tar", 
-        ".zip": "application/zip",
-        ".sh": "application/x-sh",
-        ".rft": "application/rtf",
-        ".rar": "application/x-rar-compressed",
-        ".jar": "application/java-archive",
-        ".csv": "text/csv",
-        ".tsv": "text/tab-separated-values",
-        ".txt": "text/plain",
-        ".bin": "application/octet-stream",
-        ".bz": "application/x-bzip",
-        ".bz2": "application/x-bzip2",
-        ".gtar": "application/x-gtar",
-        ".tgz": "application/x-gtar",
-        }
+#DATACITE_USER = os.environ.get('DATACITE_USER')
+#DATACITE_PASSWORD = os.environ.get('DATACITE_USER')
+DATACITE_USER = 'DATACITE.DCPPC'
+DATACITE_PASSWORD = 'Player&Chemo+segment'
 
 
 #########################################################
@@ -248,12 +233,8 @@ class Ark(CoreMetadata):
             aws_location = list(filter(lambda x: re.match('aws', x), content))
             gpc_location = list(filter(lambda x: re.match('gpc', x), content))
 
-
             if len(aws_location) != 0:
-
-                filename = re.findall(r'/([_.\w]*.\w*)$', aws_location[0])[0]
-
-                aws_download_task = postDownload.delay(filename, aws_location[0], checksum_list, file_format, ark_guid, 'aws')
+                aws_download_task = postDownload.delay(aws_location[0], checksum_list, file_format, ark_guid, 'aws')
                 aws_download_task.get()
                 response.update({
                     'aws_location': aws_download_task.result
@@ -261,11 +242,8 @@ class Ark(CoreMetadata):
                 
 
             if len( gpc_location) != 0:
-
-                filename = re.findall(r'/([_.\w]*.\w*)$', gpc_location[0])[0]
-
-                gpc_download_task = postDownload.delay(filename, aws_location[0], checksum_list, file_format, ark_guid, 'gpc')
-                gpc_download_task.get()
+                aws_download_task = postDownload.delay(aws_location[0], checksum_list, file_format, ark_guid, 'gpc')
+                aws_download_task.get()
                 response.update({
                     'gpc_location': gpc_download_task.result
                     })
@@ -321,11 +299,7 @@ class Doi(CoreMetadata):
         '''
 
         doi = self.data.get('@id')
-        landing_page = self.data.get('url')
-
-        file_format = mimetype.get(self.data.get('fileFormat'))
-        content_url = data.get('contentUrl')  
-        media = "\n".join([file_format+'='+url for url in content_url])
+        landing_page = self.options.get('_target')
 
         #convert data to xml
         xml_payload = convertDoiToXml(self.data)
@@ -347,32 +321,22 @@ class Doi(CoreMetadata):
                 password = self.auth[1]
                 )
 
-        # register all the media instances
-        media_task = register_media.delay(
-                doi = doi,
-                media = media,
-                user = self.auth[0],
-                password = self.auth[1]
-                )
 
         metadata_task.get()
         doi_task.get()
-        media_task.get()
 
         full_response = {
                 'metadata_registration': metadata_task.result,
-                'doi_reservation': doi_task.result,
-                'media_registration': media_task.result
+                'doi_reservation': doi_task.result
                 }
 
         return full_response
  
 
-    def import(self):
+    def importAPI(self):
         api_response = self.getAPI()
         self.data=api_response
 
-        assert 
         obj.postNeo()
 
         response_message = {"cache": {"imported": GUID} }
@@ -443,15 +407,13 @@ class Doi(CoreMetadata):
             gpc_location = list(filter(lambda x: re.match('gpc', x), content))
 
             if len(aws_location) != 0:
-                filename = re.findall(r'/([_.\w]*.\w*)$', aws_location[0])[0]
-
-                aws_download_task = postDownload.delay(filename, aws_location[0], checksum_list, file_format, doi_guid, 'aws')
+                aws_download_task = postDownload.delay(aws_location[0], checksum_list, file_format, doi_guid, 'aws')
+                aws_download_task.get()
                 assert aws_download_task.state != 'FAILURE'
                 
-            if len( gpc_location) != 0:
-                filename = re.findall(r'/([_.\w]*.\w*)$', gpc_location[0])[0]
 
-                gpc_download_task = postDownload.delay(filename, gpc_location[0], checksum_list, file_format, doi_guid, 'gpc')
+            if len( gpc_location) != 0:
+                gpc_download_task = postDownload.delay(gpc_location[0], checksum_list, file_format, doi_guid, 'gpc')
                 assert gpc_download_task.state != 'FAILURE'
 
 
@@ -500,5 +462,3 @@ def convertArkToJson(anvl):
 
     # format the json-ld keys and return
     return formatJson(unpacked) 
-
-
