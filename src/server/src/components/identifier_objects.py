@@ -140,7 +140,7 @@ class Ark(CoreMetadata):
                     response = json.dumps({"guid": GUID, "message": "No record of Identifier"})
                     )
 
-        # processing anvl
+
         self.data = convertArkToJson(api_response.content.decode('utf-8'))
         return self.data
 
@@ -156,32 +156,39 @@ class Ark(CoreMetadata):
     def postAPI(self):
         ''' Interface for minting all new identifiers 
         '''
-
         # determine endpoint 
         target = "".join([self.endpoint, self.data.get('@id',None) ]) 
-
-
-        # remove the cloud location keys if they are in the payload
-        #if data.get('contentUrl') is not None:
-            # encrypt cloud locations
-            #data.pop('contentUrl')
-
+ 
         # format payload
         payload = profileFormat(flatten(self.data))
-        payload.update(self.options)            
-
-
+        payload.update({
+                "_target": self.data.get('url'),
+                "_status": "reserved"
+                    })
+        
+        
         # add put commmand to task queue
         submission_task= put_task.delay(target=target,payload=payload, user=self.auth[0], password=self.auth[1])
 
-        # if the time to live is set, delete in that amount of time
-        if self.options.get('ttl') is not None:
+        # make sure the response message is succusfull
+        submission_task.get()
+        api_response = submission_task.result
+        response_message = {
+            "ezid": {"status": api_response.get('status_code'), "messsage": api_response.get('content')},
+            }
+
+
+        # check if payload has expiration specification
+        if self.data.get('expires') is not None:
+            # TODO format from datetime to seconds
+            expiration_date = self.data.pop('expires')  
             del_task = delete_task.apply_async(
                     (target, self.auth[0], self.auth[1]),
                     countdown = float(self.options.get('ttl') )
                     )
+            response_message.update({"expires_in": expiration})
 
-        return submission_task
+        return response_message 
 
 
     def postNeo(self):

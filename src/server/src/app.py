@@ -116,9 +116,6 @@ def MintArk():
 
     obj.postNeo()
 
-    response_message = {
-            "ezid": {"status": api_response.get('status_code'), "messsage": api_response.get('content')},
-            }
 
     return Response(
             status = api_response.get('status_code'),
