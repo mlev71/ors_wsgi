@@ -3,6 +3,9 @@
 ############################################################
 from celery import Celery
 import re, requests, os, json
+
+from ezid_anvl import escape, outputAnvl
+
 from neo4j.v1 import GraphDatabase
 import neo4j.v1
 
@@ -467,16 +470,4 @@ def postNeoFunder(funder, guid):
             }
 
     return response
-
-
-# ANVL PROCESSESING
-
-def escape(s):
-    return re.sub("[%:\r\n]", lambda c: "%%%02X" % ord(c.group(0)), s)
-
-
-def outputAnvl(anvlDict):
-    ''' Encode all objects into strings, lists into strings
-    '''
-    return "\n".join("%s: %s" % (escape(str(name)), escape(str(value) )) for name,value in anvlDict.items()).encode('utf-8')
 

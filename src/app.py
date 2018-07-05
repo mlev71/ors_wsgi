@@ -16,8 +16,8 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 # from components import *
 from app.components.cel import *
 from app.components.globus_auth import *
-from app.components.helper_functions import *
 from app.components.identifier_objects import *
+
 from app.components.neo_helpers import *
 
 app = Flask('ors', 
