@@ -1,6 +1,7 @@
 email_whitelist.txt
+scratch.txt
+todo.txt
 *.pem
 *.swp
 *.pyc
-*.txt
 *.p
