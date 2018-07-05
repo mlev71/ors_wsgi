@@ -1,0 +1,374 @@
+openapi: 3.0.0
+servers:
+  - url: "http://ors.test.datacite.org"
+    description: "Deployment on ORS"
+    x-location: "eu-west-1"
+    x-maturity: test
+    
+info:
+  description: "The Object Resolution Service provides landing pages, generates bags for fetching files, and a common JSON-LD interface for minting DOIs and ARKs" 
+  version: "1.0.0"
+  title: "Object Resolution Service"
+  contact:
+    email: mal8ch@virginia.edu
+    name: Max Levinson
+    x-role: responsible developer
+    x-id: "0000-0002-7104-5586"
+  license:
+    name: Apache 2.0
+    url: 'http://www.apache.org/licenses/LICENSE-2.0.html'
+  x-accessRestriction: limited
+  x-implementationLanguage: python
+tags:
+  - name: DOI
+    description: "Endpoints for Datacite Doi"
+  - name: ARK
+    description: "Endpoints for EZID Ark"
+  - name: BDBags
+    description: "Producing BDBags that resolve to files"
+
+paths:
+
+  '/ark/put':
+    put:
+      security:
+        - globusAuth:
+          - read_email
+          - read_openId
+      tags:
+        - ARK
+      summary: "Mint a new identifier through EZID"
+      x-accessRestriction: limited
+      operationId: mintID 
+      description: "Posts a JSON body to the endpoint and then mints an EZID"
+      
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Ark'
+      responses:
+        '200':
+          description: A successfull mint will return a plaintext body and the ID
+          content:
+            application/json:
+              schema:
+                  $ref: '#/components/schemas/ArkPutResponse'
+          x-responseSchema: 'http://www.w3.org/ns/anno.jsonld'
+          x-JSONLDContext: 'http://www.w3.org/ns/anno.jsonld'
+        '400':
+          description: bad input parameter
+          x-responseSchema: 'http://www.w3.org/ns/anno.jsonld'
+          x-JSONLDContext: 'http://schema.org"'
+  
+  '/ark:/{ID}':
+    parameters:
+          - in: path
+            name: ID
+            required: true
+            description: "enter ARK, DOI, or UUID"
+            x-parameterType: InputParameter
+            x-valueType:  #URI for ARK DOI and EZID UUID
+              - 'http://identifiers.org/ark/'
+              - 'http://identifiers.org/doi/'
+            schema:
+              type: string
+            example: "ark:/99999/fk4r8059v"
+    get:
+      tags:
+      - ARK
+      summary: "Retrieve Metadata for an Identifier from EZID"
+      x-accessRestriction: none
+      responses:
+        '200':
+          description: Successfully Resolved
+          content:
+              application/ld+json:
+                x-responseSchema: 'http://www.w3.org/ns/anno.jsonld'
+                x-JSONLDContext: 'http://www.schema.org'  schema:
+                  $ref: '#/components/schemas/Ark'
+                 
+              text/html:
+              
+    
+    delete:
+      tags:
+      - ARK
+      security:
+        - globusAuth:
+          - read_email
+          - read_openId
+      summary: "Remove the reserved ARK from EZID"
+      x-accessRestriction: limited
+      responses:
+        '200':
+            description: Sucsesfully Deleted
+            x-responseSchema: 'http://www.w3.org/ns/anno.jsonld'
+            x-JSONLDContext: 'http://www.w3.org/ns/anno.jsonld'
+  
+  '/doi/put':
+    put:
+      tags:
+      - DOI
+      security:
+        - globusAuth:
+          - read_email
+          - read_openId  
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Doi'
+      responses:
+        '200':
+          description: A successfull mint will return a plaintext body and the ID
+          content:
+            text/plain:
+              schema:
+                  type: string
+          x-responseSchema: 'http://www.w3.org/ns/anno.jsonld'
+          x-JSONLDContext: 'http://www.w3.org/ns/anno.jsonld'
+        '400':
+          description: bad input parameter
+          x-responseSchema: 'http://www.w3.org/ns/anno.jsonld'
+          x-JSONLDContext: 'http://schema.org"'
+  
+  '/doi:/{ID}':
+    parameters:
+      - in: path
+        name: ID
+        required: true
+        description: "An existing DOI Identifier"
+        x-parameterType: InputParameter
+        x-valueType:
+          - 'http://identifiers.org/doi/'
+        schema:
+          type: string
+        example: "doi.org/10.25491/5e92-ht74"
+        
+    get:
+      tags:
+      - DOI
+      summary: "Returns Identifier Metadata as eithar an HTML landing page or as a JSON-LD schema.org payload"
+      x-accessRestriction: limited
+      responses:
+        '200':
+          description: Returned the Identifier Metadata
+          content:
+              application/ld+json:
+                schema:
+                  $ref: '#/components/schemas/Doi'
+              text/html:
+                description: A formatted HTML landing page with Schema.org and Dublin Core embedded descriptions
+    
+    delete:
+      security:
+        - globusAuth:
+          - read_email
+          - read_openId
+      summary: "Remove the reserved Doi from Datacite"
+      x-accessRestriction: limited
+      responses:
+        '200':
+            description: Sucsesfully Deleted
+          #x-responseSchema: 'http://www.w3.org/ns/anno.jsonld'
+          #x-JSONLDContext: 'http://www.w3.org/ns/anno.jsonld'
+      tags:
+      - DOI
+  
+components:
+  securitySchemes:
+    globusAuth:
+      type: oauth2
+      description: Authenticates Via Globus Auth API
+      flows:
+        authorizationCode:
+          authorizationUrl: /oauth/login
+          scopes:
+            read_email: know your email
+            read_openId: know who you are in globus
+          tokenUrl: /oauth/token
+          refreshUrl: /oauth/refresh
+      
+  schemas:
+  
+    Ark:
+      type: object
+      description: 'KC2 core metadata specification for Ark identifiers'
+      required:
+        - '@id'
+        - 'identifier'
+        - 'url'
+        - 'contentUrl'
+        - 'dateCreated'
+        - 'name'
+        - 'author'
+      properties:
+        '@id':
+          type: string
+          example: "ark:/9999/fk4testArk"
+        '@type':
+          type: string
+          example: "Dataset"
+        'identifier':
+          type: array
+          items:
+            oneOf:
+              - type: string
+              - type: object
+                properties:
+                  '@type':
+                    type: string
+                    default: 'PropertyValue'
+                  'name':
+                    type: string
+                    example: 'md5'
+                    description: Checksum method name
+                  'value':
+                    type: string
+                    example: 'fdbbfeaed48cbc4612c217e91bb5c677'
+                    description: Checksum value
+        'url':
+          type: string
+        'contentUrl':
+          type: array
+          items:
+            type: string
+        'includedInDataCatalog':
+          oneOf:
+            - type: string
+            - type: object
+              properties:
+                '@id':
+                  type: string
+                '@type':
+                  type: string
+                  default: "DataCatalog"
+                'name':
+                  type: string
+        'dateCreated':
+          type: string
+        'expires':
+          type: string
+        'name':
+          type: string
+        'author':
+          type: array
+          items:
+            type: object
+            properties:
+              '@id':
+                type: string
+                description: DOI or ORCID
+              '@type':
+                type: string
+              'name':
+                type: string
+
+    Doi:
+      type: object
+      description: 'KC2 core metadata specification for Doi identifier'
+      required:
+        - '@id'
+        - 'identifier'
+        - 'url'
+        - 'includedInDataCatalog'
+        - 'name'
+        - 'author'
+        - 'datePublished'
+      properties:
+        '@id':
+          type: string
+          example: "doi:/10.25491/5e92-ht74"
+        '@type':
+          type: string
+          example: "Dataset"
+        identifier:
+          type: array
+        url: 
+          type: string
+        includedInDataCatalog:
+          type: string
+        name:
+          type: string
+          description: The name or title of the resource
+        author:
+          type: object
+          properties:
+            '@id':
+              type: string
+              example: 'doi:/10.25491/5e92-ht74'
+              description: A DOI or ORCID for the author
+            '@type':
+              type: string
+              example: 'Organization'
+            'name':
+              type: string
+        datePublished:
+          type: string
+          description: The date on which the Resource was published
+        dateCreated:
+          type: string
+          description: The date on which the Resource was created
+        additionalType:
+          type: string
+          description: An Additional Type for the Item, typically used for adding more specific types from external vocabularies
+        description:
+          type: string
+          description: Text description used for discovery 
+        keywords:
+          type: string
+          description: Keywords used for discovery
+        license:
+          type: string
+          description: License document that applies to this content, typically indicated by URL
+        version:
+          type: string
+          example: "v7"
+          description: The version of the dataset
+        citation:
+          type: string
+          description: A citation or reference to another creative work, e.g. an article describing the dataset
+        isBasedOn:
+          type: string
+          description: A resource that was used in the creation of this resource
+        PredecessorOf:
+          type: string
+          description: A pointer to the next version
+        successorOf:
+          type: string
+          description: A pointer to the previous version
+        hasPart:
+          type: string
+          description: A dataset that is part of this resource
+        isPartOf:
+          type: string
+          example: "doi:/10.13039/12345"
+          description: A dataset that this resource is part of
+        funder:
+          type: object
+          properties:
+            '@type':
+              type: string
+              example: "Organization"
+              description: "Schema.org Funder Type"
+            '@id':
+              type: string
+              example: "doi:/10.13039/100000050"
+              description: DOI identifier for Funder
+            'name':
+              type: string
+              example: "National Heart, Lung, and Blood Institute"
+              description: Funder Name
+              
+        contentSize:
+          type: string
+          example: "17 mb"
+        fileFormat:
+          type: string
+          example: "txt"
+        contentUrl:
+          type: array
+          items:
+            type: string
+          example: [ "https://storage.googleapis.com/gtex_biobank/downloads/biobank_collection_20180627_203059.txt" ]

@@ -1,9 +1,0 @@
-requests
-flask
-uwsgi
-neo4j-driver
-globus-sdk
-celery
-redis
-pycrypto
-lxml

@@ -1,0 +1,6 @@
+email_whitelist.txt
+*.pem
+*.swp
+*.pyc
+*.txt
+*.p
