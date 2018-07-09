@@ -61,13 +61,21 @@ def home():
     return str(result_dict)
 
 
+@app.route('/browse', methods = ['GET'])
+@auth_required
+def browse():
+    ''' View a visualization of all the GUIDs
+    '''
+
+    return render_template('browse.html')
+
+
 @app.route('/docs', methods = ['GET'])
 def docs():
     """ Display a homepage for the Broker
 
     """
     return render_template('docs.html') 
-
 
 
 @app.route('/login')
@@ -85,15 +93,18 @@ def login():
     else:
         auth_code = request.args.get('code')
         tokens = client.oauth2_exchange_code_for_tokens(auth_code)
-
         
-        access_token = tokens.by_resource_server.get('auth.globus.org', {}).get('access_token')
-        refresh_token = tokens.by_resource_server.get('auth.globus.ors', {}).get('refresh_token')
+        access_token = tokens.data.get('access_token')
+        refresh_token = tokens.data.get('refresh_token')
+
+        #OIDC token
+        oidc_token = tokens.decode_id_token()
 
         session.update(
                 access_token = access_token,
+                oidc_token = oidc_token,
                 refresh_token = refresh_token
-                )
+            )
 
         return 'Access Token: {}'.format(access_token) 
 
@@ -172,39 +183,42 @@ def MintArk():
             )
 
 
-
-@app.route('/ark:/<path:Shoulder>/<path:Id>', methods = ['GET', 'DELETE'])
+@app.route('/ark:/<path:Shoulder>/<path:Id>', methods = ['DELETE'])
 @auth_required
+def DeleteArk(Shoulder, Id):
+    GUID = 'ark:/'+Shoulder+'/'+Id
+    ark = Ark(guid=GUID)
+
+    api_async = ark.deleteAPI() 
+
+    deleteNeoByGuid.delay(GUID)
+
+    response_dict = api_async.get()
+
+    response_message = {
+            "api": {"status_code": response_dict.get('status_code'), "message": response_dict.get('content')},
+            }
+
+    return Response(
+            status= response_dict.get('status_code'),
+            response = json.dumps(response_message)
+            )
+
+
+
+@app.route('/ark:/<path:Shoulder>/<path:Id>', methods = ['GET'])
 def GetArk(Shoulder, Id):
     GUID = 'ark:/'+Shoulder+'/'+Id
-    if request.method == "GET":
-        ark = Ark(guid=GUID) 
-        payload = ark.getAPI()
+    ark = Ark(guid=GUID) 
+    payload = ark.getAPI()
 
-        content_type = request.accept_mimetypes.best_match(['text/html', 'application/json', 'application/json-ld'])
+    content_type = request.accept_mimetypes.best_match(['text/html', 'application/json', 'application/json-ld'])
 
-        if content_type == 'application/json' and request.accept_mimetypes[content_type]> request.accept_mimetypes['text/html']:
-            return Response(response = json.dumps(payload))
-        else:
-            return render_template('Ark.html', data = payload)
+    if content_type == 'application/json' and request.accept_mimetypes[content_type]> request.accept_mimetypes['text/html']:
+        return Response(response = json.dumps(payload))
+    else:
+        return render_template('Ark.html', data = payload)
 
-    if request.method == "DELETE":
-        ark = Ark(guid=GUID)
-
-        api_async = ark.deleteAPI() 
-
-        deleteNeoByGuid.delay(GUID)
-
-        response_dict = api_async.get()
-
-        response_message = {
-                "api": {"status_code": response_dict.get('status_code'), "message": response_dict.get('content')},
-                }
-
-        return Response(
-                status= response_dict.get('status_code'),
-                response = json.dumps(response_message)
-                )
 
 
 @app.route('/ark/import/<path:GUID>', methods = ['GET'])
@@ -214,9 +228,10 @@ def ImportArk(GUID):
     return ark.importAPI()
 
 
-###########################################################
-# Doi Interfaces
 ###########################################
+# Doi Interfaces                          #
+###########################################
+
 @app.route('/doi/put', methods = ['PUT'])
 @auth_required
 def MintDoi():
@@ -245,35 +260,36 @@ def MintDoi():
             )
 
 
-@app.route('/doi:/<path:Shoulder>/<path:Id>', methods = ['GET', 'DELETE'])
+@app.route('/doi:<path:Shoulder>/<path:Id>', methods = ['DELETE'])
 @auth_required
+def DeleteDoi(Shoulder, Id)
+    GUID = Shoulder +'/'+ Id
+    doi = Doi(guid=GUID)
+    
+    neo_task = deleteNeoByGuid.delay(GUID)
+    response_dict = doi.deleteAPI()
+
+    response_message = {
+            "api": {"status_code": response_dict.get('status_code'), "message": response_dict.get('content')}
+                }
+
+    return Response(
+            status=201,
+            response = json.dumps(response_message)
+            )
+
+
+@app.route('/doi:/<path:Shoulder>/<path:Id>', methods = ['GET'])
 def GetDoi(Shoulder, Id):
     GUID = Shoulder +'/'+ Id
+    doi = Doi(guid=GUID)
+    payload = doi.getAPI()
 
-    if request.method == "GET":
-        doi = Doi(guid=GUID)
-        payload = doi.getAPI()
-
-        content_type = request.accept_mimetypes.best_match(['text/html', 'application/json', 'application/json-ld'])
-        if content_type == 'application/json' and request.accept_mimetypes[content_type]> request.accept_mimetypes['text/html']:
-            return Response(response = json.dumps(payload))
-        else:
-            return render_template('Doi.html', data = payload)
-
-    if request.method == "DELETE":
-        doi = Doi(guid=GUID)
-        
-        neo_task = deleteNeoByGuid.delay(GUID)
-        response_dict = doi.deleteAPI()
-
-        response_message = {
-                "api": {"status_code": response_dict.get('status_code'), "message": response_dict.get('content')}
-                    }
-
-        return Response(
-                status=201,
-                response = json.dumps(response_message)
-                )
+    content_type = request.accept_mimetypes.best_match(['text/html', 'application/json', 'application/json-ld'])
+    if content_type == 'application/json' and request.accept_mimetypes[content_type]> request.accept_mimetypes['text/html']:
+        return Response(response = json.dumps(payload))
+    else:
+        return render_template('Doi.html', data = payload)
 
 
 @app.route('/doi/import/<path:GUID>', methods = ['GET'])

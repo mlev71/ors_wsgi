@@ -4,7 +4,7 @@
 from celery import Celery
 import re, requests, os, json
 
-from ezid_anvl import escape, outputAnvl
+from app.components.ezid_anvl import escape, outputAnvl
 
 from neo4j.v1 import GraphDatabase
 import neo4j.v1
@@ -12,13 +12,14 @@ import neo4j.v1
 NEO_URI = "".join(["bolt://",os.environ.get('NEO_URL', 'localhost'), ":7687"])
 NEO_USER = os.environ.get('NEO_USER', 'neo4j')
 NEO_PASSWORD = os.environ.get('NEO_PASSWORD', 'localtest')
+
 REDIS_URL = os.environ.get('REDIS_URL', 'redis://localhost:6379')
 DATACITE_URL = os.environ.get('DATACITE_URL', 'https://mds.test.datacite.org')
 
 celery = Celery(
         'cel',
-        backend= REDIS_URL, 
-        broker = REDIS_URL 
+        backend= str(REDIS_URL), 
+        broker = str(REDIS_URL)
         )
 
 # tasks for network requests
@@ -405,7 +406,9 @@ def postNeoAuthor(author, guid):
             if author.get('@type') == "Person":
                 # try later to get orchid identifier
                 auth_record = tx.run(
-                        "MERGE (aut:Person:Author {name: $name})-[:AuthorOf]->(doi {guid: $guid} )"
+                        "MATCH (doi {guid: $guid} ) "
+                        "MERGE (aut:Person:Author {name: $name}) "
+                        "MERGE (aut)-[:AuthorOf]->(doi)"
                         "RETURN aut",
                         guid = guid,
                         name= author_name
@@ -413,7 +416,9 @@ def postNeoAuthor(author, guid):
 
             if author.get('@type') == "Organization":
                 auth_record = tx.run( 
-                        "MERGE (aut:Org:Author {name: $name})-[:AuthorOf]->(doi {guid: $guid}) "
+                        "MATCH (doi {guid: $guid}) "
+                        "MERGE (aut:Org:Author {name: $name}) "
+                        "MERGE (aut)-[:AuthorOf]->(doi) "
                         "RETURN aut",
                         guid= guid,
                         name= author_name

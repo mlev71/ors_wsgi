@@ -40,9 +40,8 @@ def hash_email(email, salt, iterations=1000):
 
 def auth_required(f):
     ''' Wrapper for Route's that require authentication
-
-
-    TODO -> send redirect arguments to 
+ 
+    Checks the query parameters, authorization header, and session for the globus access_token
     '''
     @wraps(f)
     def auth_wrap(*args, **kwargs): 
@@ -63,22 +62,30 @@ def auth_required(f):
 
         # if access_token is provided check it before refreshing
         if access_token is not None:
+
+            # validate token
             valid_token = auth_client.oauth2_validate_token(access_token)
-
             if valid_token['active']==True:
-
                 ac = globus_sdk.AuthClient(authorizer = globus_sdk.AccessTokenAuthorizer(access_token))
-                return f(*args, **kwargs)  
-                # retrieve the email of the user
-                valid_email = validate_email(ac.oauth2_userinfo().data.get('email'))
-                if valid_email:
-                    return f(*args, **kwargs) 
 
-                else: 
-                    return redirect(url_for('register'))
-
-            else:
+            else: 
                 return redirect(url_for('login'))
+
+            # inspect token to return list of identities
+            token_info = auth_client.oauth2_token_introspect(access_token, include='identities_set')
+            id_list = token_info.get('identities_set') 
+
+            # retrieve all identities associated with that token
+            identity_list = auth_client.get_identities(ids = id_list).data.get('identities')
+
+            
+            # if any of the identities are a member, return to authorized function
+            if any([validate_email(identity.get('email')) for identity in identity_list]):
+                return f(*args, **kwargs) 
+
+            else: 
+                return redirect(url_for('register'))
+
         else:
             return redirect(url_for('login'))
 
