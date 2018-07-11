@@ -47,11 +47,6 @@
                <th itemprop="author">{{data['author']}}</th>
             </tr>
 
-            <tr>
-               <th> Url </th>
-               <th itemprop="url">{{data['url']}}</th>
-            </tr>
-
 
             <tr>
                <th> Date Published </th>
@@ -59,7 +54,7 @@
             </tr>
      
 
-            {% if data['dateCreated'] is not none %}
+            {% if data['dateCreated'] is defined %}
             <tr>
                <th> Date Created </th>
                <th itemprop="dateCreated"> {{data['dateCreated']}}</th>
@@ -67,7 +62,7 @@
             {% endif %}
 
 
-            {% if data['additionalType'] is not none %}
+            {% if data['additionalType'] is defined %}
             <tr>
                <th> Additional Type </th>
                <th itemprop="additionalType"> {{data['additionalType']}} </th>
@@ -75,31 +70,31 @@
             {% endif %}
 
 
-            {% if data['description'] is not none %}
+            {% if data['description'] is defined %}
             <tr>
                <th> Description </th>
                <th itemprop="description"> {{data['description']}} </th>
             </tr>
             {% endif %}
 
-            {% if data['keywords'] is not none %}
+            {% if data['keywords'] is defined %}
             <tr>
                <th> Keywords </th>
                <th itemprop="keywords"> {{data['keywords']}} </th>
             </tr>
             {% endif %}
 
-            {% if data['license'] is not none %}
+            {% if data['license'] is defined %}
             <tr>
                <th> License </th>
                <th itemprop="license"> {{data['license']}} </th>
             </tr>
             {% endif %}
             
-            {% if data['version'] is not none %}
+            {% if data['version'] is defined %}
             <tr>
                <th> Version </th>
-               <th itemprop="version"> {{data['version'] </th>
+               <th itemprop="version"> {{data['version']}} </th>
             </tr>
             {% endif %}
 
@@ -118,12 +113,10 @@
 
       <!-- relationships -->
       <div id='rel_container'>
-
-         {% if data['includedInDataCatalog'] is not none or data['isBasedOn'] is not none or data['PredecessorOf'] is not none or data['successorOf'] is not none or data['hasPart'] is not none or data['isPartOf'] is not none%}
             <h2> Identifier Relationships </h2>
 
             <table>
-               {% if data['includedInDataCatalog'] is not none %}
+               {% if data['includedInDataCatalog'] is defined %}
                <tr>
                   <th> Included In Data Catalog </th>
                   <th itemprop="includedInDataCatalog"> {{data['includedInDataCatalog']}} </th>
@@ -131,35 +124,35 @@
                {% endif %}
 
 
-               {% if data['isBasedOn'] is not none %}
+               {% if data['isBasedOn'] is defined %}
                <tr>
                   <th> Is Based On </th>
                   <th itemprop="isBasedOn"> {{data['isBasedOn']}} </th>
                </tr> 
                {% endif %}
 
-               {% if data['PredecesorOf'] is not none %}
+               {% if data['PredecesorOf'] is defined %}
                <tr>
                   <th> Predecessor Of </th>
                   <th itemprop="PredecessorOf"> {{data['PredecessorOf']}} </th>
                </tr> 
                {% endif %}
 
-               {% if data['successorOf'] is not none %}
+               {% if data['successorOf'] is defined %}
                <tr>
                   <th> Successor Of </th>
                   <th itemprop="successorOf"> {{data['successorOf']}} </th>
                </tr> 
                {% endif %}
 
-               {% if data['hasPart'] is not none %}
+               {% if data['hasPart'] is defined %}
                <tr>
                   <th> Has Part </th>
                   <th itemprop="hasPart"> {{data['hasPart']}} </th>
                </tr> 
                {% endif %}
 
-               {% if data['isPartOf'] is not none %} 
+               {% if data['isPartOf'] is defined %} 
                <tr>
                   <th> Is Part Of </th>
                   <th itemprop="hasPart"> {{data['hasPart']}} </th>
@@ -167,25 +160,30 @@
                {% endif %}
             </table>
      
-         {% endif %}
       </div>
    
       <!-- funder data --> 
       {% if data['funder'] is not none %} 
       <div id='funder_container'>
          
-         {% for funder in data['funder'] %}
+         {% if data['funder'] is mapping %}
             <table itemtype="http://schema.org/funder">
-            {% for funder_key, funder_val in funder.iteritems() $}
-               
                <tr>
-                  <th> {{funder_key}} </th>
-                  <th itemprop="{{funder_key}}"> {{funder_val}} </th>
+                  <th> Funder Type </th>
+                  <th itemprop="@type"> {{data['funder']['@type']}} </th>
                </tr>
 
-            {% endfor %}
+               <tr>
+                  <th> Funder Name </th>
+                  <th itemprop="name"> {{data['funder']['name']}} </th>
+               </tr>
+               <tr>
+                  <th> Funder Id </th>
+                  <th itemprop="@id"> {{data['funder']['@id']}} </th>
+               </tr>
+
             </table>
-         {% endfor %}
+         {% endif %}
       </div>
       {% endif %}
         

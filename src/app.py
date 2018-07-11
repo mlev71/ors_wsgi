@@ -260,9 +260,9 @@ def MintDoi():
             )
 
 
-@app.route('/doi:<path:Shoulder>/<path:Id>', methods = ['DELETE'])
+@app.route('/doi:/<path:Shoulder>/<path:Id>', methods = ['DELETE'])
 @auth_required
-def DeleteDoi(Shoulder, Id)
+def DeleteDoi(Shoulder, Id):
     GUID = Shoulder +'/'+ Id
     doi = Doi(guid=GUID)
     

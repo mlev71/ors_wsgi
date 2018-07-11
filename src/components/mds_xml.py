@@ -302,7 +302,7 @@ def unpack_xml(input_root):
 
     xml_dict['@context'] = 'https://schema.org'
 
-    identifier = input_root.find('{http://datacite.org/schema/kernel-4}identifier')
+    identifier = input_root.find('{http://datacite.org/schema/kernel-4}identifier').text
     if identifier is not None:
         xml_dict['identifier'] = identifier
         xml_dict['@id'] = identifier
