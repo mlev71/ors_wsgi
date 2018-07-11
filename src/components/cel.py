@@ -251,7 +251,7 @@ def postNeoDoi(data):
                 assert datePublished is not None
                 assert includedInDataCatalog is not None
                 doi_record = tx.run(
-                        "MATCH (dc:DataCatalog {guid: $dcguid} ) "
+                        "MERGE (dc:DataCatalog {guid: $dcguid} ) "
                         "MERGE (doi:Doi:Dataset {name: $name, guid: $guid, datePublished: $datePub})-[:includedInDataCatalog]->(dc)"
                         "RETURN doi",
                         dcguid = includedInDataCatalog,

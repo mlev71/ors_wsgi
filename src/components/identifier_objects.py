@@ -308,7 +308,7 @@ class Doi(CoreMetadata):
                         'keywords', 'license', 'version', 'citation', 'isBasedOn',
                         'predecessorOf', 'successorOf', 'hasPart', 'isPartOf', 'funder',
                         'contentSize', 'fileFormat', 'contentUrl'])
-    endpoint = "https://mds.test.datacite.org/"
+    endpoint = DATACITE_URL 
     auth = (DATACITE_USER, DATACITE_PASSWORD)
 
 
@@ -318,15 +318,36 @@ class Doi(CoreMetadata):
         '''
 
         api_response = requests.get(
-                url = self.endpoint+'metadata/'+self.guid,
+                url = self.endpoint+'/metadata/'+self.guid,
                 auth = requests.auth.HTTPBasicAuth(self.auth[0], self.auth[1])
                 )
 
         if api_response.status_code == 404:
             return {"status":404, "message": "No record of Identifier"}
 
-
         self.data = convertDoiToJson(api_response.content.decode('utf-8'))
+
+        # get the media and append to content url
+        media_response = requests.get(
+                url = self.endpoint+'/media/'+self.guid,
+                auth = requests.auth.HTTPBasicAuth(self.auth[0], self.auth[1])
+                )
+
+
+        if media_response.content.decode('utf-8')!= 'No media for the DOI':
+            media = media_response.content.decode('utf-8').split("\n")
+            contentUrl = set()
+            for content in media:
+                fileFormat, location = content.split('=')
+                contentUrl.add(location)
+
+            
+            self.data.update(
+                    {
+                        "contentUrl": list(contentUrl),
+                        "fileFormat": fileFormat
+                        }
+                    )
 
         return self.data 
 
@@ -340,7 +361,6 @@ class Doi(CoreMetadata):
 
         file_format = mimetype.get(self.data.get('fileFormat'), self.data.get('fileFormat'))
         content_url = self.data.get('contentUrl')  
-
 
 
         #convert data to xml
@@ -374,17 +394,38 @@ class Doi(CoreMetadata):
         
         # register all the media instances if content_url isn't empty
         if content_url is not None:
-            media = "\n".join([file_format+'='+url for url in content_url])
-            media_task = register_media.delay(
-                    doi = doi,
-                    media = media,
-                    user = self.auth[0],
-                    password = self.auth[1]
+
+            if isinstance(content_url, str):
+                media =  file_format+'='+url
+                media_task = register_media.delay(
+                        doi = doi,
+                        media = media,
+                        user = self.auth[0],
+                        password = self.auth[1]
                     )
-            media_task.get()
-            response.update(
-                    {'media_registration': media_task.result}
-                )
+                media_task.get()
+
+                response.update(
+                        {'media_registration': media_task.result}
+                    )
+
+
+            if isinstance(content_url, list):
+                media_responses = []
+                for url in content_url:
+                    media =  file_format+'='+url
+                    media_task = register_media.delay(
+                            doi = doi,
+                            media = media,
+                            user = self.auth[0],
+                            password = self.auth[1]
+                        )
+                    media_task.get()
+                    media_responses.append( media_task.result)
+                    
+                response.update(
+                        {'media_registration':media_responses}
+                    )
 
 
         return response
@@ -461,8 +502,8 @@ class Doi(CoreMetadata):
         if doi_type == "Dataset":
             checksum_list = list(filter(lambda x: isinstance(x,dict), self.data.get('identifier'))) 
 
-            aws_location = list(filter(lambda x: re.match('aws|amazon', x), content))
-            gpc_location = list(filter(lambda x: re.match('gpc|google', x), content))
+            aws_location = list(filter(lambda x: re.search('aws|amazon', x), content))
+            gpc_location = list(filter(lambda x: re.search('gpc|google', x), content))
 
             if len(aws_location) != 0:
                 filename = re.findall(r'/([_.\w]*.\w*)$', aws_location[0])[0]

@@ -101,6 +101,17 @@
          </table>
       </div>
    
+      <div>
+         <table>
+         {% for cloud_location in data['contentUrl'] %}
+            <tr>
+               <th> Cloud Location</th>
+               <th> {{cloud_location}} </th>
+            </tr>
+         {% endfor %}
+         </table>
+      </div>
+
       
       <!-- citation metadata -->
       {% if data['citation'] is not none %}
