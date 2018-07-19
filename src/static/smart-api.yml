@@ -1,9 +1,10 @@
 openapi: 3.0.0
 servers:
   - url: "http://ors.test.datacite.org"
-    description: "Deployment on ORS"
-    x-location: "eu-west-1"
+    description: "Deployment on Datacite Infrastrucure"
+    x-location: "US-East-1"
     x-maturity: test
+  -
     
 info:
   description: "The Object Resolution Service provides landing pages, generates bags for fetching files, and a common JSON-LD interface for minting DOIs and ARKs" 
@@ -18,7 +19,8 @@ info:
     name: Apache 2.0
     url: 'http://www.apache.org/licenses/LICENSE-2.0.html'
   x-accessRestriction: limited
-  x-implementationLanguage: python
+  x-implementationLanguage: "Python"
+  termsOfService: "https://ors.datacite.org/"
 tags:
   - name: DOI
     description: "Endpoints for Datacite Doi"
@@ -77,6 +79,10 @@ paths:
     get:
       tags:
       - ARK
+      security:
+        - globusAuth:
+          - read_email
+          - read_openId
       summary: "Retrieve Metadata for an Identifier from EZID"
       x-accessRestriction: none
       responses:
@@ -108,6 +114,7 @@ paths:
   
   '/doi/put':
     put:
+      summary: "Mint a New DOI"
       tags:
       - DOI
       security:
@@ -149,6 +156,10 @@ paths:
     get:
       tags:
       - DOI
+      security:
+        - globusAuth:
+          - read_email
+          - read_openId 
       summary: "Returns Identifier Metadata as eithar an HTML landing page or as a JSON-LD schema.org payload"
       x-accessRestriction: limited
       responses:
@@ -162,6 +173,7 @@ paths:
                 description: A formatted HTML landing page with Schema.org and Dublin Core embedded descriptions
     
     delete:
+    
       security:
         - globusAuth:
           - read_email
@@ -183,12 +195,10 @@ components:
       description: Authenticates Via Globus Auth API
       flows:
         authorizationCode:
-          authorizationUrl: /oauth/login
+          authorizationUrl: /login
           scopes:
             read_email: know your email
             read_openId: know who you are in globus
-          tokenUrl: /oauth/token
-          refreshUrl: /oauth/refresh
       
   schemas:
   
