@@ -93,12 +93,11 @@ paths:
           description: Successfully Resolved
           content:
               application/ld+json:
-                x-responseSchema: 'http://www.w3.org/ns/anno.jsonld'
-                x-JSONLDContext: 'http://www.schema.org'  schema:
+                 x-responseSchema: 'http://www.w3.org/ns/anno.jsonld'
+                 x-JSONLDContext: 'http://www.schema.org'  
+                 schema:
                   $ref: '#/components/schemas/Ark'
-                 
-              text/html:
-              
+                  
     
     delete:
       tags:
