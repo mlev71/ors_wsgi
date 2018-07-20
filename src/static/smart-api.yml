@@ -3,7 +3,7 @@ servers:
   - url: "http://ors.test.datacite.org"
     description: "Sandbox Deployment on Datacite Infrastrucure"
     x-location: "US-East-1"
-    x-maturity: test
+    x-maturity: staging
   - url: "http://ors.datacite.org"
     description: "Production Deployment on Datacite Infrastrucure"
     x-location: "US-East-1"
