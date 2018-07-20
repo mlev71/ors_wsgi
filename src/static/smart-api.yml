@@ -29,8 +29,7 @@ tags:
     description: "Endpoints for Datacite Doi"
   - name: ARK
     description: "Endpoints for EZID Ark"
-  - name: BDBags
-    description: "Producing BDBags that resolve to files"
+
 
 paths:
 
@@ -38,15 +37,15 @@ paths:
     put:
       security:
         - globusAuth:
-          - read_email
-          - read_openId
+          - email
+          - profile
       tags:
         - ARK
       summary: "Mint a new identifier through EZID"
       x-accessRestriction: limited
       operationId: mintID 
       description: "Posts a JSON body to the endpoint and then mints an EZID"
-      
+  
       requestBody:
         content:
           application/json:
@@ -58,13 +57,20 @@ paths:
           content:
             application/json:
               schema:
-                  $ref: '#/components/schemas/ArkPutResponse'
-          x-responseSchema: 'http://www.w3.org/ns/anno.jsonld'
-          x-JSONLDContext: 'http://www.w3.org/ns/anno.jsonld'
+                  type: object
+                  description: "Response from ORS upon minting an Ark"
+                  properties:
+                    ezid:
+                      type: object
+                      properties:
+                        status:
+                          type: integer
+                          example: 201
+                        message:
+                          type: string
+                          example: "success: ark:/13030/d3sodiumtest"
         '400':
-          description: bad input parameter
-          x-responseSchema: 'http://www.w3.org/ns/anno.jsonld'
-          x-JSONLDContext: 'http://schema.org"'
+          description: Bad input parameter
   
   '/ark:/{ID}':
     parameters:
@@ -84,8 +90,8 @@ paths:
       - ARK
       security:
         - globusAuth:
-          - read_email
-          - read_openId
+          - email
+          - profile
       summary: "Retrieve Metadata for an Identifier from EZID"
       x-accessRestriction: none
       responses:
@@ -93,11 +99,16 @@ paths:
           description: Successfully Resolved
           content:
               application/ld+json:
-                 x-responseSchema: 'http://www.w3.org/ns/anno.jsonld'
-                 x-JSONLDContext: 'http://www.schema.org'  
-                 schema:
+                x-responseSchema: 'http://www.w3.org/ns/anno.jsonld'
+                x-JSONLDContext: 'http://www.schema.org'  
+                schema:
                   $ref: '#/components/schemas/Ark'
-                  
+                 
+              text/html:
+                schema:
+                  type: string
+              
+              
     
     delete:
       tags:
@@ -121,8 +132,8 @@ paths:
       - DOI
       security:
         - globusAuth:
-          - read_email
-          - read_openId  
+          - email
+          - openId  
       requestBody:
         content:
           application/json:
@@ -153,7 +164,7 @@ paths:
           - 'http://identifiers.org/doi/'
         schema:
           type: string
-        example: "doi.org/10.25491/5e92-ht74"
+        example: "10.25491/5e92-ht74"
         
     get:
       tags:
@@ -170,23 +181,45 @@ paths:
           content:
               application/ld+json:
                 schema:
-                  $ref: '#/components/schemas/Doi'
+                  type: object
+                  description: "Response from ORS upon minting a DOI"
+                  properties:
+                    metadata_registration:
+                      type: object
+                      properties:
+                        status_code:
+                          type: integer
+                        content:
+                          type: string
+                    doi_reservation:
+                      type: object
+                      properties:
+                        status_code:
+                          type: integer
+                        content:
+                          type: string
+                    media_registration:
+                      type: object
+                      properties:
+                        status_code:
+                          type: integer
+                        content:
+                          type: string
               text/html:
-                description: A formatted HTML landing page with Schema.org and Dublin Core embedded descriptions
+                schema:
+                  type: string
+              
     
     delete:
-    
       security:
         - globusAuth:
-          - read_email
-          - read_openId
+          - email
+          - profile
       summary: "Remove the reserved Doi from Datacite"
       x-accessRestriction: limited
       responses:
         '200':
             description: Sucsesfully Deleted
-          #x-responseSchema: 'http://www.w3.org/ns/anno.jsonld'
-          #x-JSONLDContext: 'http://www.w3.org/ns/anno.jsonld'
       tags:
       - DOI
   
@@ -197,10 +230,11 @@ components:
       description: Authenticates Via Globus Auth API
       flows:
         authorizationCode:
-          authorizationUrl: /login
+          authorizationUrl: https://auth.globus.org/v2/oauth2/authorize
+          tokenUrl: https://auth.globus.org/v2/oauth2/token
           scopes:
-            read_email: know your email
-            read_openId: know who you are in globus
+            email: Grants access to user email
+            openId: Grants access to globus user id
       
   schemas:
   
@@ -276,6 +310,7 @@ components:
                 type: string
               'name':
                 type: string
+      
 
     Doi:
       type: object
@@ -297,6 +332,17 @@ components:
           example: "Dataset"
         identifier:
           type: array
+          items:
+            oneOf:
+              - type: string
+              - type: object
+                properties:
+                  '@type':
+                    type: string
+                  'name':
+                    type: string
+                  'value':
+                    type: string
         url: 
           type: string
         includedInDataCatalog:
@@ -383,4 +429,4 @@ components:
           type: array
           items:
             type: string
-          example: [ "https://storage.googleapis.com/gtex_biobank/downloads/biobank_collection_20180627_203059.txt" ]
+          example: [ "https://storage.googleapis.com/gtex_biobank/downloads/biobank_collection_20180627_203059.txt" ]  
