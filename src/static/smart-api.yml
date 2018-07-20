@@ -10,7 +10,7 @@ servers:
     x-maturity: production
     
 info:
-  description: "The Object Resolution Service provides landing pages, generates bags for fetching files, and a common JSON-LD interface for minting DOIs and ARKs" 
+  description: "The Object Resolution Service (ORS) registers and resolves GUIDs and Core Metadata for DCPPC digital objects. It creates and assigns persistent GUIDs for digital objects: Archival Resource Keys (ARKs), Datacite Digital Object Identifiers (DOIs), or Minids (implemented as ARKs).  It also provides a landing service endpoint where Core Metadata for these objects in human and machine readable format (JSON-LD) may be retrieved, including the cloud provider endpoints" 
   version: "1.0.0"
   title: "Object Resolution Service"
   contact:
