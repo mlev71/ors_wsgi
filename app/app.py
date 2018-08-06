@@ -65,7 +65,7 @@ def login():
     """ Run Oauth2 flow with globus auth 
     """ 
     client = globus_sdk.ConfidentialAppAuthClient(CLIENT_ID, CLIENT_SECRET)
-    client.oauth2_start_flow(redirect_uri= 'https://localhost/login', refresh_tokens=True)
+    client.oauth2_start_flow(redirect_uri= url_for('login'), refresh_tokens=True)
 
     if 'code' not in request.args:
         authorize_url = client.oauth2_get_authorize_url() 
