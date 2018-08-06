@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+
+   {% block body %}
+      <div class="item">
+         <h2>ORS Service Description</h2>
+         <p> The Object Registration Service, provides a json-ld interface and landing pages to DOIs and ARKs.</p>
+      </div>
+
+      <div class="item">
+         <h3> Relevant Links </h3>
+         <ul>
+            <li><a href="https://docs.google.com/document/d/1PkzWCV5xJqk9ES0hvyvv3YpUGxBRsf6d5fBN33_qR9U/edit?usp=sharing"> API documentation</li>
+            <li><a href="{{url_for('docs')}}"> SwaggerHub SmartAPI</li>
+         </ul>
+      </div>
+   {% endblock %}

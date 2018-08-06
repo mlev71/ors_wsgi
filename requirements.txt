@@ -7,3 +7,5 @@ celery
 redis
 pycrypto
 lxml
+bugsnag
+neomodel

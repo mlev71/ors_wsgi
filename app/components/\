@@ -1,23 +1,19 @@
 #!/usr/bin/env python3 
 from flask import Flask, render_template, request, Response, session, redirect, url_for
 
-
 import globus_sdk
 import json
 import requests
 import re
 import os
 import sys
-from neo4j.v1 import GraphDatabase
+import bugsnag
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-# change with __init__.py to 
-# from components import *
 from app.components.cel import *
 from app.components.globus_auth import *
 from app.components.identifier_objects import *
-
 from app.components.neo_helpers import *
 
 app = Flask('ors', 
@@ -32,6 +28,17 @@ app.config['Testing'] = False
 # set session secret
 app.config['SECRET_KEY']= '3156218277'
 
+# configure bugsnag
+
+bugsnag.configure(
+    api_key= os.environ.get('bugsnag_key'),
+    project_root="/app",
+)
+
+# test to see if its running
+bugsnag.notify(Exception('Test Error on Starting Application'))
+
+
 
 #####################################
 #            General                #
@@ -41,33 +48,13 @@ app.config['SECRET_KEY']= '3156218277'
 def home():
     ''' Render Homepage with Content Information
     '''
-
     # count the number of downloads, datasets, and 
-    neo_driver = GraphDatabase.driver(uri = NEO_URI, auth = (NEO_USER, NEO_PASSWORD) )
-    with neo_driver.session() as session:
-        with session.begin_transaction() as tx:
-            result_count = tx.run(
-                    "MATCH (dset:Dataset) "
-                    "MATCH (dcat:DataCatalog) " 
-                    "MATCH (ddown:Download) " 
-                    "RETURN count(dset), count(dcat), count(ddown)"
-                    )
-    result_dict = result_count.single().data()
 
     # return all data dictionaries
     
     # list all dataset guids
 
-    return str(result_dict)
-
-
-@app.route('/browse', methods = ['GET'])
-@auth_required
-def browse():
-    ''' View a visualization of all the GUIDs
-    '''
-
-    return render_template('browse.html')
+    return render_template('home.html')
 
 
 @app.route('/docs', methods = ['GET'])
@@ -173,9 +160,16 @@ def MintArk():
         return err.output()
 
 
-    api_response = ark.postAPI()
-    ark.postNeo()
+    if request.args.get('status') is None:
+        status = 'reserved'
 
+    else:
+        status = request.args.get('status')
+
+    api_response = ark.postAPI(status)
+
+
+    #ark.postNeo()
 
     return Response(
             status = api_response.get('status_code'),
@@ -212,9 +206,9 @@ def GetArk(Shoulder, Id):
     ark = Ark(guid=GUID) 
     payload = ark.getAPI()
 
-    content_type = request.accept_mimetypes.best_match(['text/html', 'application/json', 'application/json-ld'])
+    content_type = request.accept_mimetypes.best_match(['text/html', 'application/json', 'application/ld+json'])
 
-    if content_type == 'application/json' and request.accept_mimetypes[content_type]> request.accept_mimetypes['text/html']:
+    if content_type == 'application/json' or content_type == 'application/ld+json' and request.accept_mimetypes[content_type]> request.accept_mimetypes['text/html']:
         return Response(response = json.dumps(payload))
     else:
         return render_template('Ark.html', data = payload)
@@ -235,8 +229,6 @@ def ImportArk(GUID):
 @app.route('/doi/put', methods = ['PUT'])
 @auth_required
 def MintDoi():
-    ''' Posting to Neo 
-    '''
     payload = json.loads(request.data)
 
     try:
@@ -246,17 +238,12 @@ def MintDoi():
         return err.output()
 
 
-    obj.postNeo()
+    #obj.postNeo()
     api_response = obj.postAPI()
-
-
-    response_message = {
-            "api": api_response
-            }
 
     return Response(
             status = api_response.get('status_code'),
-            response = json.dumps(response_message)
+            response = json.dumps(api_response)
             )
 
 
@@ -281,30 +268,64 @@ def DeleteDoi(Shoulder, Id):
 
 @app.route('/doi:/<path:Shoulder>/<path:Id>', methods = ['GET'])
 def GetDoi(Shoulder, Id):
+ 
     GUID = Shoulder +'/'+ Id
-    doi = Doi(guid=GUID)
-    payload = doi.getAPI()
+    json_ld = requests.get(url = 'https://data.datacite.org/application/vnd.schemaorg.ld+json/'+ GUID)
 
-    content_type = request.accept_mimetypes.best_match(['text/html', 'application/json', 'application/json-ld'])
-    if content_type == 'application/json' and request.accept_mimetypes[content_type]> request.accept_mimetypes['text/html']:
+    if json_ld.status_code == 200:
+        payload = json.loads(json_ld.content.decode('utf-8'))
+
+    if json_ld.status_code == 204:
+        doi = Doi(guid=GUID)
+        
+        try:
+            payload = doi.getWorks()
+        except (NotADataciteDOI, InvalidPayload, IncompletePayload) as err:
+            return err.output()
+
+    if json_ld.status_code == 404:
+        return 
+
+    content_type = request.accept_mimetypes.best_match(['text/html', 'application/json', 'application/ld+json'])
+    if content_type == 'application/json' or content_type == 'application/ld+json' and request.accept_mimetypes[content_type]> request.accept_mimetypes['text/html']:
         return Response(response = json.dumps(payload))
     else:
         return render_template('Doi.html', data = payload)
 
 
-@app.route('/doi/import/<path:GUID>', methods = ['GET'])
+
+
+
+
+#@app.route('/doin:/<path:Shoulder>/<path:Id>', methods = ['GET'])
+def GetWorks(Shoulder, Id):
+
+
+    content_type = request.accept_mimetypes.best_match(['text/html', 'application/json', 'application/ld+json'])
+    if content_type == 'application/json' or content_type == 'application/ld+json' and request.accept_mimetypes[content_type]> request.accept_mimetypes['text/html']:
+        return Response(response = json.dumps(payload))
+    else:
+        return render_template('Doi.html', data = payload)
+
+
+@app.route('/doi/import/<path:GUID>', methods = ['PUT'])
 @auth_required
 def ImportDoi(GUID):
-    doi = Doi(GUID)
-    return doi.importAPI()
+    ''' Accept a json body to deposit in neo, accept a GUID to search for and import
+    '''
+    if request.data is not None:
+        try:
+            payload = json.loads(request.data)
+            obj = Doi(data=payload)
+
+        except MissingKeys as err:
+            return err.output()
+
+        return obj.postNeo()
+    else:
+        obj = Doi(guid=GUID)
+        return obj.importAPI()
 
 
-
-if __name__ == '__main__':
-    app.run(
-            ssl_context=('cert.pem','key.pem'), 
-            #ssl_context='adhoc',
-            host="0.0.0.0", 
-            port=8080
-            )
-
+from bugsnag.wsgi.middleware import BugsnagMiddleware
+app = BugsnagMiddleware(app)

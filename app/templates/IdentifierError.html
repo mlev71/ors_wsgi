@@ -1,0 +1,26 @@
+{% extends "base.html" %} 
+
+   {% block dchead %}
+   {% endblock %}
+
+   {% block body %}
+
+   <h2> Error {{ data['errorCode'] }}  {{ data['@id'] }} </h2>
+
+   <p> 
+   {{data['errorMessage'] }} 
+   </p>
+
+   <!--Dump Anvl for Unknown Profile--!>
+      {% if data['anvl'] is defined %}
+      <h3> Request Anvl </h3> 
+      <p> {{data['anvl']}} </p>
+      {% endif %}
+
+   <!--Dump Ezid response for Identifier 404 --!>
+      {% if data['apiResponse'] is defined %}
+      <h3> Request Data </h3>
+      <p> EZID Response {{ data['apiResponse']}} </p>
+      {% endif %}
+
+   {% endblock %}

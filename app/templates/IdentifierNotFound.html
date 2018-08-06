@@ -1,0 +1,13 @@
+{ % extends base %}
+
+{% block body %}
+<h2> 404: Identifier Not Found </h2>
+
+<p> You are seeing this error because the identifier {{error_message['@id']}} was not able to be resolved at the endpoint {{ error_message['url']}}</p>
+
+<h3> Full Error Message </h3>
+<p>{{error_message|tojson|safe}} </p>
+
+{% endblock %} 
+
+

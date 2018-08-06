@@ -1,6 +1,11 @@
 
-<head profile="http://dublincore.org/documents/2008/08/04/dc-html/">
-      <link rel="stylesheet" type=text/css href="{{ url_for('static', filename='style.css') }}">
+{% extends "base.html" %} 
+
+   {% block dchead %}
+      <script type="application/ld+json">
+         {{data|tojson|safe}}
+      </script>
+
 
    <!--Dublin Core Embedding for Ark-->
         <title> Landing Page for {{ data['@id'] }} </title>
@@ -21,13 +26,13 @@
         <!-- locations --> 
         <meta name="DCTERMS.subject" href= "{{ data['name'] }}" > 
         <link rel="DCTERMS.subject" href="{{ data['name'] }}" >
+      {% endblock %}
 
-    </head>
-
+   {% block body %}
    <!-- Schema.org formatted body --> 
    <body itemscope itemtype="http://schema.org/{{data['@type']}}">
 
-      <div id="identifier_container">
+      <div class="container" id="identifier_container">
          <h2> Identifier Metadata </h2>
 
          <!-- required keys --> 
@@ -52,25 +57,32 @@
                <th itemprop="dateCreated">{{data['dateCreated']}}</th>
             </tr>
      
-
-
-            <tr>
-               <th> Url </th>
-               <th itemprop="url">{{data['url']}}</th>
-            </tr>
-
-
-            {% if data['includedInDataCatalog'] is not none %} 
+            {% if data['includedInDataCatalog'] is defined %} 
             <tr>
                <th> Included In Data Catalog </th>
                <th itemprop="includedInDataCatalog"> {{data['includedInDataCatalog']}} </th>
             </tr> 
             {% endif %}
 
+            <tr>
+               <th> Content Url </th>
 
+               <th> <a href="{{data['contentUrl']}}"> {{data['contentUrl']}}</a> </th>
+            </tr>
+
+            <tr>
+               <th> Checksum </th>
+               <th> {{data['checksum']}} </th>
+            </tr>
+
+            <tr>
+               <th> Checksum Method </th>
+               <th> {{data['checksumMethod']}} </th>
+            </tr>
       </table>
 
       </div>
    </body>
+   {% endblock %}
 
 

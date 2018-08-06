@@ -14,11 +14,11 @@ RUN pip3 install -r requirements.txt
 RUN apt-get install -y uwsgi-plugin-python3
 RUN apt-get install -y uwsgi-plugin-python
 
-COPY src/components/cel.py .
+COPY app/components/cel.py .
 
 
 COPY http.ini .
-COPY src/ app/
+COPY app/ app/
 COPY email_hashed.p .
 
 EXPOSE 3031

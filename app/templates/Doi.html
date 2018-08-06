@@ -1,0 +1,261 @@
+   
+{% extends "base.html" %} 
+
+
+
+      <!--Dublin Core Embedding for Doi-->
+   {% block dchead %}
+      <script type="application/ld+json">
+         {{data|tojson|safe}}
+      </script>
+
+      <title> Landing Page for {{ data['@id'] }} </title>
+      
+      <!-- What DC metadata is in the page-->
+      <link rel="schema.DC" href="http://purl.org/dc/elements/1.1/" >
+      <link rel="schema.DCTERMS" href="http://purl.org/dc/terms/" >
+      <link rel="schema.DCTYPE" href="http://purl.org/dc/dcmitype" >
+      
+      <!-- Values-->
+      <meta name="DC.type" content = "Dataset" >
+      <meta name="DC.title" content = "Landing Page for {{ data['name']}}" >
+      
+      <!-- identifier -->            
+      <meta name="DC.identifier" content ="{{ data['@id']}}" scheme="DCTERMS.URI" > 
+      <link rel="DC.identifier" content ="{{ data['@id']}}" scheme="DCTERMS.URI" > 
+      
+      <!-- locations --> 
+      <meta name="DCTERMS.subject" href= "{{ data['name'] }}" > 
+      <link rel="DCTERMS.subject" href="{{ data['name'] }}" > 
+   {% endblock %}
+
+   <!-- Schema.org formatted body --> 
+   {% block body %}
+   <body itemscope itemtype="http://schema.org/Dataset">
+      
+      <!-- required Identifier Metadata -->
+      <div class='container' id="body_container">
+         <div id='identifier_container' class='container'>
+            <h2 class='container_header'> Identifier Metadata </h2>
+
+            <!-- required keys --> 
+            <table>
+               <tr>
+                  <th> Name </th>
+                  <th itemprop="name">{{data['name']}}</th>
+               </tr>
+
+               <tr> 
+                  <th>Identifier </th>
+                  <th itemprop="identifier"><a href="{{data['@id']}}"> {{data['@id']}} </a></th>
+               </tr> 
+
+               
+               {% if data['author'] is defined %}
+               <tr>
+                  <th> Author </th>
+                  <th itemprop="author">{{data['author']['name']}}</th>
+               </tr>
+               {% endif %}
+
+
+               <tr>
+                  <th> Date Published </th>
+                  <th itemprop="datePublished">{{data['datePublished']}}</th>
+               </tr>
+        
+
+               {% if data['dateCreated'] is defined %}
+               <tr>
+                  <th> Date Created </th>
+                  <th itemprop="dateCreated"> {{data['dateCreated']}}</th>
+               </tr>
+               {% endif %}
+
+
+               {% if data['additionalType'] is defined %}
+               <tr>
+                  <th> Additional Type </th>
+                  <th itemprop="additionalType"> {{data['additionalType']}} </th>
+               </tr>
+               {% endif %}
+
+
+               {% if data['description'] is defined %}
+               <tr>
+                  <th> Description </th>
+                  <th itemprop="description"> {{data['description']}} </th>
+               </tr>
+               {% endif %}
+
+               {% if data['keywords'] is defined %}
+               <tr>
+                  <th> Keywords </th>
+                  <th itemprop="keywords"> {{data['keywords']}} </th>
+               </tr>
+               {% endif %}
+
+               {% if data['license'] is defined %}
+               <tr>
+                  <th> License </th>
+                  <th itemprop="license"> {{data['license']}} </th>
+               </tr>
+               {% endif %}
+               
+               {% if data['version'] is defined %}
+               <tr>
+                  <th> Version </th>
+                  <th itemprop="version"> {{data['version']}} </th>
+               </tr>
+               {% endif %}
+
+            </table>
+         </div>
+      
+         <!-- file description metadata -->
+
+         <div id="file_container" class='container'>
+            <h2 class='container_header'> File Metadata </h2>
+            <table>
+            {% if data['contentSize'] is defined %} 
+               <tr>
+                  <th> Content Size </th>
+                  <th> {{data['contentSize']}} </th>
+               </tr>
+            
+            {% endif %}
+            
+            {% if data['fileFormat'] is defined %}
+               <tr>
+                  <th> File Format </th>
+                  <th> {{data['fileFormat']}} </th>
+               </tr>
+
+            {% endif %}
+
+            {% if data['contentUrl'] is defined %}
+            <tr>
+               <th> Cloud Locations </th>
+               <th> 
+                  <ul>
+                  {% for cloud_location in data['contentUrl'] %}
+                  <li> <a href="{{cloud_location}}"> {{cloud_location}} </a>  </li>
+                  {% endfor %}
+                  </ul>
+               <th>
+            </tr>
+            {% endif %}
+
+            </table>
+            <!-- look for checksums -->  
+         </div>
+
+    
+         <!-- citation metadata -->
+         {% if data['citation'] is defined %}
+         <div id='citation_container' class='container'>
+            <h2 class='container_header'> Citation </h2>
+            <p itemprop='citation'> {{data['citation']}} </p>
+         </div>
+         {% endif %}
+
+
+         <!-- relationships -->
+         {% if data['includedInDataCatalog'] is defined %}
+         <div id='rel_container' class='container'>
+               <h2 class='container_header'> Identifier Relationships </h2>
+
+               {% if data['includedInDataCatalog'] is mapping %}
+               <h3> Included In Data Catalog </h3>
+                  <table itemprop="includedInDataCatalog">
+                     <tr>
+                        <th> Data Catalog </th>
+                        <th> Identifier </th>
+                     </tr>
+
+                     <tr> 
+                        <th> <a href="{{data['includedInDataCatalog']['@id']}}"> {{data['includedInDataCatalog']['name']}} </a> </th>
+                        <th> {{data['includedInDataCatalog']['@id']}} </th>
+                     </tr>
+
+                     
+                  </table>
+
+               {% else %}
+               <table>
+                  <tr>
+                     <th itemprop="includedInDataCatalog"> <a href="{{data['includedInDataCatalog']}}">{{data['includedInDataCatalog']}}</a> </th>
+
+                  </tr> 
+               {% endif %}
+
+
+                  {% if data['isBasedOn'] is defined %}
+                  <tr>
+                     <th> Is Based On </th>
+                     <th itemprop="isBasedOn"> {{data['isBasedOn']}} </th>
+                  </tr> 
+                  {% endif %}
+
+                  {% if data['PredecesorOf'] is defined %}
+                  <tr>
+                     <th> Predecessor Of </th>
+                     <th itemprop="PredecessorOf"> {{data['PredecessorOf']}} </th>
+                  </tr> 
+                  {% endif %}
+
+                  {% if data['successorOf'] is defined %}
+                  <tr>
+                     <th> Successor Of </th>
+                     <th itemprop="successorOf"> {{data['successorOf']}} </th>
+                  </tr> 
+                  {% endif %}
+
+                  {% if data['hasPart'] is defined %}
+                  <tr>
+                     <th> Has Part </th>
+                     <th itemprop="hasPart"> {{data['hasPart']}} </th>
+                  </tr> 
+                  {% endif %}
+
+                  {% if data['isPartOf'] is defined %} 
+                  <tr>
+                     <th> Is Part Of </th>
+                     <th itemprop="hasPart"> {{data['hasPart']}} </th>
+                  </tr> 
+                  {% endif %}
+               </table>
+        
+         </div>
+         {% endif %}
+
+         <!-- funder data --> 
+         {% if data['funder'] is defined %} 
+         <div id='funder_container' class='container'>
+            <h2 class='container_header'> Funding Metadata </h2>        
+            <table>
+               <tr>
+                  <th> Name </th>
+                  <th> Identifier </th>
+                  <th> Type </th>
+               </tr>
+            {% for funder in data['funder'] %}
+               <tr itemtype="http://schema.org/funder">
+                  <th itemprop="name"> {{funder['name']}} </th>
+
+                  <th itemprop="@id"> <a href="{{funder['@id']}}"> {{funder['@id']}} </a> </th>
+
+                  <th itemprop="@type"> {{funder['@type']}} </th>
+
+               </tr>
+
+            {% endfor %}
+
+            </table>
+         </div>
+         {% endif %}
+      </div>
+   </body>
+   {% endblock %}
+
+

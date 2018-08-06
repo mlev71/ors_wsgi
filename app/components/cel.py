@@ -3,30 +3,25 @@
 ############################################################
 from celery import Celery
 import re, requests, os, json
-
-from app.components.ezid_anvl import escape, outputAnvl
-
 from neo4j.v1 import GraphDatabase
 import neo4j.v1
 
 NEO_URI = "".join(["bolt://",os.environ.get('NEO_URL', 'localhost'), ":7687"])
 NEO_USER = os.environ.get('NEO_USER', 'neo4j')
 NEO_PASSWORD = os.environ.get('NEO_PASSWORD', 'localtest')
-
 REDIS_URL = os.environ.get('REDIS_URL', 'redis://localhost:6379')
 DATACITE_URL = os.environ.get('DATACITE_URL', 'https://mds.test.datacite.org')
 
 celery = Celery(
         'cel',
-        backend= str(REDIS_URL), 
-        broker = str(REDIS_URL)
+        backend= REDIS_URL, 
+        broker = REDIS_URL 
         )
 
 # tasks for network requests
 @celery.task(name='put_identifier')
 def put_task(target, payload, user, password):
     ''' Mint a new ARK 
-
     '''
 
     # turn into bytes for submission
@@ -251,7 +246,7 @@ def postNeoDoi(data):
                 assert datePublished is not None
                 assert includedInDataCatalog is not None
                 doi_record = tx.run(
-                        "MERGE (dc:DataCatalog {guid: $dcguid} ) "
+                        "MATCH (dc:DataCatalog {guid: $dcguid} ) "
                         "MERGE (doi:Doi:Dataset {name: $name, guid: $guid, datePublished: $datePub})-[:includedInDataCatalog]->(dc)"
                         "RETURN doi",
                         dcguid = includedInDataCatalog,
@@ -406,9 +401,7 @@ def postNeoAuthor(author, guid):
             if author.get('@type') == "Person":
                 # try later to get orchid identifier
                 auth_record = tx.run(
-                        "MATCH (doi {guid: $guid} ) "
-                        "MERGE (aut:Person:Author {name: $name}) "
-                        "MERGE (aut)-[:AuthorOf]->(doi)"
+                        "MERGE (aut:Person:Author {name: $name})-[:AuthorOf]->(doi {guid: $guid} )"
                         "RETURN aut",
                         guid = guid,
                         name= author_name
@@ -416,9 +409,7 @@ def postNeoAuthor(author, guid):
 
             if author.get('@type') == "Organization":
                 auth_record = tx.run( 
-                        "MATCH (doi {guid: $guid}) "
-                        "MERGE (aut:Org:Author {name: $name}) "
-                        "MERGE (aut)-[:AuthorOf]->(doi) "
+                        "MERGE (aut:Org:Author {name: $name})-[:AuthorOf]->(doi {guid: $guid}) "
                         "RETURN aut",
                         guid= guid,
                         name= author_name
@@ -475,4 +466,16 @@ def postNeoFunder(funder, guid):
             }
 
     return response
+
+
+# ANVL PROCESSESING
+
+def escape(s):
+    return re.sub("[%:\r\n]", lambda c: "%%%02X" % ord(c.group(0)), s)
+
+
+def outputAnvl(anvlDict):
+    ''' Encode all objects into strings, lists into strings
+    '''
+    return "\n".join("%s: %s" % (escape(str(name)), escape(str(value) )) for name,value in anvlDict.items()).encode('utf-8')
 
