@@ -159,13 +159,14 @@ class Ark(CoreMetadata):
         '''
         anvl = self.anvl
 
-        if anvl.get('_profile') == 'erc':
+        profile = anvl.get('_profile')
+
+        if profile == 'erc':
             json_ld = {
                     '@id': 'http://n2t.net/'+self.guid,
                     'identifier': 'http://n2t.net/'+self.guid,
                     '@context': 'https://schema.org',
-                    'url': anvl.get('_target'),
-                    '_profile': 'erc'
+                    'url': anvl.get('_target')
                     }
 
 
@@ -190,30 +191,27 @@ class Ark(CoreMetadata):
                             })
 
 
-        elif anvl.get('_profile') == 'dc':
-
+        elif profile == 'dc':
             json_ld = { re.sub('dc.', '', key): value for key, value in anvl.items() if 'dc.' in key}
             json_ld['@type'] = anvl.get('dc.type')
             json_ld['@context'] = 'http://purl.org/dc/elements/1.1/' 
             json_ld['@id'] = 'https://n2t.net/'+self.guid 
             json_ld['identifier'] = 'https://n2t.net/'+self.guid 
-            json_ld['_profile'] = 'dc'
+            profile = 'dc'
 
-            
-
-        elif anvl.get('_profile') == 'datacite':
+        elif profile == 'datacite':
             if anvl.get('datacite') is not None:
                 xml = anvl.get('datacite').replace('<?xml version="1.0"?>%0A', '')
                 doi_metadata = DoiXML(xml)
                 json_ld = doi_metadata.parse()
+                profile = 'NIHdc'
             else: 
                 doi_metadata = DoiANVL(anvl, self.guid)
                 json_ld = doi_metadata.to_json_ld()
+                profile = 'datacite'
 
-            json_ld['profile'] = 'datacite'
 
-
-        elif anvl.get('_profile') == 'NIHdc':
+        elif profile == 'NIHdc':
             anvl = { key.replace('NIHdc.', ''): value for key,value in anvl.items() }
             anvl['@id'] = 'https://n2t.net/' + self.guid
             anvl['identifier'] = 'https://n2t.net/' + self.guid
@@ -222,7 +220,6 @@ class Ark(CoreMetadata):
             json_ld = unroll(anvl) 
             json_ld.pop('id')
             json_ld.pop('context')
-
 
         else:
             # If Profile is Unknown raise an Exception
@@ -236,7 +233,7 @@ class Ark(CoreMetadata):
                 json_ld.pop(key)
         
 
-        return json_ld 
+        return json_ld, profile
 
 
     def delete_api(self):

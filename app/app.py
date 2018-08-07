@@ -327,7 +327,7 @@ def GetArk(Shoulder, Id):
         else:
             return err.json_response()
     try:
-        payload =  ark_obj.to_json_ld()
+        payload, profile =  ark_obj.to_json_ld()
 
     except (UnknownProfile400) as e:
         if content_type == 'text/html':
@@ -336,22 +336,12 @@ def GetArk(Shoulder, Id):
             return err.json_response()
   
 
-    if payload.get('_profile') is not None:
-        profile = payload.pop('_profile')
-    else:
-        profile = 'NIHdc'
-
     if content_type == 'application/json' or content_type == 'application/ld+json':
         return Response(
                 status = 200, 
                 response = json.dumps(payload))
     else:
-        # if the profile isn't NIHdc only return the JSON-LD
-        if profile != 'NIHdc':
-            return Response(status = 200, response = json.dumps(payload))
-        else:
-
-            return render_template('Ark.html', data = payload)
+        return render_template('Ark.html', data = payload, profile = profile)
 
 
 

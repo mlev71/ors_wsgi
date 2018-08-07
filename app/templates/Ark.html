@@ -35,52 +35,151 @@
       <div class="container" id="identifier_container">
          <h2> Identifier Metadata </h2>
 
-         <!-- required keys --> 
+         {% if profile=='NIHdc' %}
+            <table>
+               <tr>
+                  <th> Name </th>
+                  <th itemprop="name">{{data['name']}}</th>
+               </tr>
+               
+               <tr> 
+                  <th>Identifier </th>
+                  <th itemprop="identifier">{{data['@id']}}</th>
+               </tr> 
+
+               <tr>
+                  <th> Author </th>
+                  <th itemprop="author">{{data['author']}}</th>
+               </tr>
+
+               <tr>
+                  <th> Date Created </th>
+                  <th itemprop="dateCreated">{{data['dateCreated']}}</th>
+               </tr>
+        
+               {% if data['includedInDataCatalog'] is defined %} 
+               <tr>
+                  <th> Included In Data Catalog </th>
+                  <th itemprop="includedInDataCatalog"> {{data['includedInDataCatalog']}} </th>
+               </tr> 
+               {% endif %}
+
+               <tr>
+                  <th> Content Url </th>
+
+                  <th> <a href="{{data['contentUrl']}}"> {{data['contentUrl']}}</a> </th>
+               </tr>
+
+               <tr>
+                  <th> Checksum </th>
+                  <th> {{data['checksum']}} </th>
+               </tr>
+
+               <tr>
+                  <th> Checksum Method </th>
+                  <th> {{data['checksumMethod']}} </th>
+               </tr>
+            </table>
+         {% endif %}
+
+
+         {% if profile=='erc' %}
          <table>
+            {% if data['who'] is defined %}
             <tr>
-               <th> Name </th>
-               <th itemprop="name">{{data['name']}}</th>
+               <th> Who </th>
+               <th> {{data['who']['@value']}}</th>
             </tr>
-            
-            <tr> 
-               <th>Identifier </th>
-               <th itemprop="identifier">{{data['@id']}}</th>
-            </tr> 
-
-            <tr>
-               <th> Author </th>
-               <th itemprop="author">{{data['author']}}</th>
-            </tr>
-
-            <tr>
-               <th> Date Created </th>
-               <th itemprop="dateCreated">{{data['dateCreated']}}</th>
-            </tr>
-     
-            {% if data['includedInDataCatalog'] is defined %} 
-            <tr>
-               <th> Included In Data Catalog </th>
-               <th itemprop="includedInDataCatalog"> {{data['includedInDataCatalog']}} </th>
-            </tr> 
             {% endif %}
 
+            {% if data['what'] is defined %}
             <tr>
-               <th> Content Url </th>
+               <th> What </th>
+               <th>{{data['what']['@value']}} </th>
+            </tr>
+            {% endif %}
 
-               <th> <a href="{{data['contentUrl']}}"> {{data['contentUrl']}}</a> </th>
+            {% if data['when'] is defined %}
+            <tr>
+               <th> When </th>
+               <th>{{ data['when']['@value'] }} </th>
+            </tr>
+            {% endif %}
+
+            {% if data['where'] is defined %}
+            <tr>
+               <th> Where </th>
+               <th>{{ data['where']['@value']}} </th>
+            </tr>
+            {% endif %}
+
+            {% if data['how'] is defined %}
+            <tr>
+               <th> How </th>
+               <th>{{ data['how']['@value'] }}</th>
+            </tr>
+            {% endif %}
+         </table>
+         {% endif %}
+     
+         {% if profile=='dc' %}
+         <table>
+            <tr>
+               <th>Title </th>
+               <th>{{data['title']}} </th>
             </tr>
 
             <tr>
-               <th> Checksum </th>
-               <th> {{data['checksum']}} </th>
+               <th>Creator </th>
+               <th>{{data['creator']}} </th>
+            </tr>
+      
+            <tr>
+               <th>Subject </th>
+               <th>{{data['subject']}} </th>
+            </tr>
+      
+            <tr>
+               <th>Description </th>
+               <th>{{data['description']}}</th>
             </tr>
 
             <tr>
-               <th> Checksum Method </th>
-               <th> {{data['checksumMethod']}} </th>
+               <th>Date </th>
+               <th>{{data['data']}}</th>
             </tr>
-      </table>
 
+
+            <tr>
+               <th>Contributor </th>
+               <th>{{data['contributor']}} </th>
+            </tr>
+
+            <tr>
+               <th>Type </th>
+               <th>{{data['type']}}</th>
+            </tr>
+
+            <tr>
+               <th>Format </th>
+               <th>{{data['format']}}</th>
+            </tr>
+            <tr>
+               <th>Source </th>
+               <th>{{data['source']}}</th>
+            </tr>
+
+            <tr>
+               <th>Relation </th>
+               <th>{{data['relation']}} </th>
+            </tr>
+         </table>
+         {% endif %}
+      </div>
+
+      <div class="container"> 
+         <h2> JSON-LD </h2>
+         <p>{{data|tojson|safe}}</p>
       </div>
    </body>
    {% endblock %}
