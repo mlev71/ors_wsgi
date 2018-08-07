@@ -272,20 +272,10 @@ def MintArk(user):
     except MissingKeys as err:
         return err.output()
 
-
-    if request.args.get('status') is None:
-        status = 'reserved'
-
-    else:
-        status = request.args.get('status')
-
+    status = request.args.get('status', 'reserved')
     api_response = ark.post_api(status)
 
-
-    return Response(
-            status = 201,
-            response = json.dumps(api_response)
-            )
+    return api_response
 
 
 @app.route('/ark:/<path:Shoulder>/<path:Id>', methods = ['DELETE'])

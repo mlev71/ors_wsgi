@@ -265,15 +265,33 @@ class Ark(CoreMetadata):
         # add put commmand to task queue
         assert self.auth[0] is not None
         assert self.auth[1] is not None
-        submission_task= put_task.delay(target=target,payload=payload, user=self.auth[0], password=self.auth[1])
+
+
+        response = requests.put(
+                auth = , requests.auth.HTTPBasicAuth(self.auth[0], self.auth[1])
+                url=target,
+                headers = {'Content-Type': 'text/plain; charset=UTF-8'},
+                data = payload
+                )
+
+        if response.status_code != 201:
+            return Response(
+                    status = 400,
+                    response = json.dumps({
+                            'error': 'Identifier Not Sucsessfully Minted',
+                            'ezid': {
+                                'status': response.status_code,
+                                'response': response.content.decode('utf-8')
+                                }
+                            })
+                    )
 
         # make sure the response message is succusfull
-        submission_task.get()
-        api_response = submission_task.result
-        response_message = {
-            "ezid": {"status": api_response.get('status_code'), "messsage": api_response.get('content')},
+        response_message = {"ezid": {
+                "status": api_response.get('status_code'), 
+                "messsage": api_response.get('content')
+                },
             }
-
 
         # check if payload has expiration specification
         if self.data.get('expires') is not None:
@@ -285,7 +303,11 @@ class Ark(CoreMetadata):
                     )
             response_message.update({"expires_in": expiration})
 
-        return response_message 
+        return Response(
+                status=201,
+                response=json.dumps(response_message),
+                mimetype='application/json'
+                )
 
 
 
