@@ -14,11 +14,11 @@ import logging
 logging.basicConfig(filename='minid.log', filemode ='w', level=logging.INFO)
 
 
-with open('test/minids.txt', 'r') as minid_file:
+with open('app/test/minids.txt', 'r') as minid_file:
     bulk_minids = minid_file.read().splitlines()
 
 
-@parameterized(bulk_minids)
+@parameterized(bulk_minids[1:30])
 def test_all_minids(identifier):
     ''' Test minids with error handling '''
     try:

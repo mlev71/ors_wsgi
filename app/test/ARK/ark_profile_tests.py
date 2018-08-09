@@ -6,6 +6,7 @@ from nose.tools import assert_equal, assert_true, assert_is_not_none, assert_is_
 from parameterized import parameterized
 
 from app.components.identifier_objects import Ark, Identifier404, UnknownProfile400
+from app.components.ezid_anvl import ingestAnvl
 
 
 erc_tests = [
@@ -62,9 +63,9 @@ dict_keys = ['who', 'what']
 @parameterized(erc_tests)
 def test_erc_conversion(identifier, anvl, json_ld):
     ark = Ark(guid=identifier) 
-    ark.anvl = anvl
+    ark.anvl = ingestAnvl(anvl)
 
-    json_response = ark.to_json_ld()
+    json_response, profile = ark.to_json_ld()
 
     for key in keys:
         assert_equal(json_response.get(key), json_ld.get(key))
@@ -74,12 +75,11 @@ def test_erc_conversion(identifier, anvl, json_ld):
     
     assert_dict_equal(json_response, json_ld)
 
-@parameterized(erc_landing)
-def test_erc_landing_page(identifier, anvl, json_ld):
+#@parameterized(erc_landing)
+#def test_erc_landing_page(identifier, anvl, json_ld):
+#pass
 
-
-datacite_tests = [
-    ( # multipule authors and alternateIdentifiers
+datacite_tests = [ ( # multipule authors and alternateIdentifiers
             'ark:/85065/d76111zp', 
             '_target: http://example.org\n_profile: datacite\ndatacite: <?xml version="1.0"?>%0A<resource xmlns="http://datacite.org/schema/kernel-3" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://datacite.org/schema/kernel-3 http://schema.datacite.org/meta/kernel-3/metadata.xsd"><identifier identifierType="ARK">85065/d76111zp</identifier><creators><creator><creatorName>Aneesh Subramanian</creatorName></creator><creator><creatorName>Caroline Ummenhofer</creatorName></creator></creators><titles><title>Translating process understanding to improve climate models. A US CLIVAR White Paper</title></titles><publisher>National Center for Atmospheric Research (NCAR)</publisher><publicationYear>2016</publicationYear><resourceType resourceTypeGeneral="Dataset">Dataset</resourceType><alternateIdentifiers><alternateIdentifier alternateIdentifierType="DOI">10.5065/D63X851Q</alternateIdentifier></alternateIdentifiers></resource>',
             {
@@ -140,9 +140,9 @@ schema_keys = ['@id', '@context', 'url', 'identifier', 'author', 'name', 'datePu
 @parameterized(datacite_tests)
 def test_json_conversion_datacite(identifier, anvl, json_ld):
     ark = Ark(guid=identifier)
-    ark.anvl = anvl
+    ark.anvl = ingestAnvl(anvl)
 
-    json = ark.to_json_ld()
+    json, profile  = ark.to_json_ld()
 
     for key in schema_keys:
         assert_equal(json.get(key), json_ld.get(key))
@@ -175,9 +175,9 @@ dc_keys = ['@id', 'identifier', '@context', 'creator', 'title', 'date', 'type']
 @parameterized(dc_tests)
 def test_json_conversion_dublin_core(identifier, anvl, json_ld):
     ark = Ark(guid=identifier)
-    ark.anvl = anvl
+    ark.anvl = ingestAnvl(anvl)
 
-    json = ark.to_json_ld()
+    json, profile = ark.to_json_ld()
 
     for key in dc_keys:
         assert_equal(json.get(key), json_ld.get(key))
@@ -268,16 +268,15 @@ nihdc_tests = [
                 }
 
             )
-
             
 ]
 
 @parameterized(nihdc_tests)
 def test_json_conversion_nihdc(identifier, anvl, json_ld):
     ark = Ark(guid=identifier)
-    ark.anvl = anvl
+    ark.anvl = ingestAnvl(anvl)
 
-    json = ark.to_json_ld()
+    json, profile = ark.to_json_ld()
 
     print(json)
     for key in schema_keys:

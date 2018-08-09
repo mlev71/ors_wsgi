@@ -8,16 +8,22 @@ from parameterized import parameterized
 from app.components.identifier_objects import Ark, Identifier404
 
 
-erc_examples = [ 'ark:/13030/c7cv4br18', 'ark:/13030/c800003v']
-datacite_examples = [ 'ark:/85065/d76111zp' ]
-nihdc_examples = []
 
 
-empty_examples = [ 'ark:/13030/c80000vq' ]
+with open('app/test/ARK/nihdc.txt', 'r') as nihdc:
+    nihdc_examples = nihdc.read().splitlines()
 
-broken_examples = []
+with open('app/test/ARK/erc.txt', 'r') as erc:
+    erc_examples = erc.read().splitlines()
 
-all_examples = erc_examples + datacite_examples + nihdc_examples + empty_examples + broken_examples
+with open('app/test/ARK/datacite.txt', 'r') as datacite:
+    datacite_examples = datacite.read().splitlines()
+
+with open('app/test/ARK/empty.txt', 'r') as empty:
+    empty_examples = empty.read().splitlines()
+
+
+all_examples = erc_examples + datacite_examples + nihdc_examples + empty_examples
 
 @parameterized(all_examples)
 def test_ark_get(identifier):
@@ -54,11 +60,13 @@ def test_ark_dev(identifier):
     assert_is_not_none(ark)
     ark.fetch()
 
-    json_ld = ark.to_json_ld()
-    print(json_ld)
+
+    json_ld, profile = ark.to_json_ld()
 
     assert_is_not_none(json_ld)
     assert_is_instance(json_ld, dict)
+    
+    assert_true(profile in [None, 'erc', 'NIHdc', 'dc', 'datacite'])
 
 
 
