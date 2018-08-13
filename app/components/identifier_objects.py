@@ -1,38 +1,32 @@
-# Identifier Objects for Object Resource Service
-
-import base64
-import json, re
-from flask import Response, render_template
 import requests
-from neo4j.v1 import GraphDatabase
-
+import base64
+import json
+import re
+import os
 import jinja2
+
+from flask import Response, render_template
+
+import datetime
+from dateutil import parser
+
 
 jinja_env = jinja2.Environment(
         loader=jinja2.PackageLoader('app','templates')
     )
 
+from app.components.cel import delete_task
 from app.components.ezid_anvl import *
-from app.components.neo_helpers import *
-from app.components.cel import put_task, delete_task
 from app.components.mds_xml import *
 
 
-from Crypto.Cipher import AES
-from Crypto import Random
-from os import urandom
-
-
-key = b'\xc5\x89\x01)\xecC\xe2\x00L\xd3\xc2\x82+\xec\xb1r'
-iv = b'\x1a\xe6\xd6\x95\xf0e\x10eb$\x81\xad\x8c\xd7;\xf1'
-cipher = AES.new(key, AES.MODE_CFB, iv)
 
 EZID = 'https://ezid.cdlib.org/id/'
 EZID_USER = os.environ.get('EZID_USER')
 EZID_PASSWORD = os.environ.get('EZID_PASSWORD')
 
-DATACITE_USER = os.environ.get('DATACITE_USER', 'cdl_dcppc')
-DATACITE_PASSWORD = os.environ.get('DATACITE_PASSWORD', 'ezid2018')
+DATACITE_USER = os.environ.get('DATACITE_USER')
+DATACITE_PASSWORD = os.environ.get('DATACITE_PASSWORD')
 DATACITE_URL = os.environ.get('DATACITE_URL', 'https://mds.test.datacite.org')
 
 
@@ -133,12 +127,12 @@ class CoreMetadata(object):
        
 
 class Ark(CoreMetadata):
-    required_keys = set(['@id', 'identifier', 'url', 'name','author', 'dateCreated']) 
+    required_keys = set(['name','author', 'dateCreated']) 
     optional_keys = set(['@type', 'expires','includedInDataCatalog', 'contentUrl'])
     endpoint = "https://ezid.cdlib.org/id/"
     auth = (EZID_USER, EZID_PASSWORD)
-    useless_keys = ['success',  '_ownergroup', '_target', #'_profile',
-            '_status', '_export', '_updated', '_owner', '_created']
+    useless_keys = ['success',  '_ownergroup', '_target', '_profile',
+            '_status', '_export', '_updated', '_owner', '_created', 'context', 'id']
 
 
     def fetch(self):
@@ -158,7 +152,6 @@ class Ark(CoreMetadata):
         ''' Parse ANVL and return in JSON-LD
         '''
         anvl = self.anvl
-
         profile = anvl.get('_profile')
 
         if profile == 'erc':
@@ -204,11 +197,10 @@ class Ark(CoreMetadata):
                 xml = anvl.get('datacite').replace('<?xml version="1.0"?>%0A', '')
                 doi_metadata = DoiXML(xml)
                 json_ld = doi_metadata.parse()
-                profile = 'NIHdc'
+                profile='doi'
             else: 
                 doi_metadata = DoiANVL(anvl, self.guid)
                 json_ld = doi_metadata.to_json_ld()
-                profile = 'datacite'
 
 
         elif profile == 'NIHdc':
@@ -218,8 +210,6 @@ class Ark(CoreMetadata):
             anvl['@context'] = 'https://schema.org'
 
             json_ld = unroll(anvl) 
-            json_ld.pop('id')
-            json_ld.pop('context')
 
         else:
             # If Profile is Unknown raise an Exception
@@ -235,79 +225,262 @@ class Ark(CoreMetadata):
 
         return json_ld, profile
 
-
     def delete_api(self):
         ''' Delete Ark from EZID 
         '''
-        delete_ark= requests.delete(
-                auth = requests.auth.HTTPBasicAuth(auth),
-                url="https://ezid.cdlib.org/id/"+self.guid
-                )
-        return delete_ark
-    
-
-    def post_api(self, status):
-        ''' Interface for minting all new identifiers 
-        '''
-        # determine endpoint 
-        target = "".join([self.endpoint, self.data.get('@id',None) ]) 
  
-        # format payload
-        payload = profileFormat(flatten(self.data))        
-
-        payload.update({
-                "_target": self.data.get('url'),
-                "_status": status,
-                "_profile": "NIHdc"
-                    })
-        
-        
-        # add put commmand to task queue
-        assert self.auth[0] is not None
-        assert self.auth[1] is not None
-
-
-        response = requests.put(
-                auth = , requests.auth.HTTPBasicAuth(self.auth[0], self.auth[1])
-                url=target,
-                headers = {'Content-Type': 'text/plain; charset=UTF-8'},
-                data = payload
+        ezid_delete = requests.delete(
+                auth = requests.auth.HTTPBasicAuth(self.auth[0], self.auth[1]),
+                url="https://ezid.cdlib.org/id/"+self.guid,
                 )
 
-        if response.status_code != 201:
+
+        if ezid_delete.status_code == 200: 
+            return Response(
+                    status = 200,
+                    response = json.dumps({
+                        '@id': self.guid,
+                        'message': 'Successfully Deleted Identifier',
+                        'code': 200,
+                        'ezid_response': { 
+                            'status': ezid_delete.status_code,
+                            'message' :ezid_delete.content.decode('utf-8')
+                            }
+                        }),
+                    mimetype='application/json')
+
+        if ezid_delete.status_code == 401:
+            return Response(
+                    status = 401,
+                    response = json.dumps({
+                        '@id': self.guid,
+                        'message': 'Unauthorized to Delete Identifier',
+                        'code': 401,
+                        'ezid_response': { 
+                            'status': ezid_delete.status_code,
+                            'message' :ezid_delete.content.decode('utf-8')
+                            }
+                        }),
+                    mimetype='application/json')
+
+        else:
             return Response(
                     status = 400,
                     response = json.dumps({
-                            'error': 'Identifier Not Sucsessfully Minted',
-                            'ezid': {
-                                'status': response.status_code,
-                                'response': response.content.decode('utf-8')
-                                }
-                            })
+                        '@id': self.guid,
+                        'message': 'Failed to Delete Identifier',
+                        'code': 400,
+                        'ezid_response': { 
+                            'status': ezid_delete.status_code,
+                            'message' :ezid_delete.content.decode('utf-8')
+                            }
+                        }),
+                    mimetype='application/json')
+
+    
+    def post_api(self, status='reserved'):
+        ''' Interface for minting ARK identifiers '''
+        payload = profileFormat(flatten(self.data))        
+       
+        if self.data.get('@id') is None and self.data.get('identifier') is None:
+            target = self.endpoint.replace('id/', 'shoulder/ark:/13030/d3')
+            landing_page = 'https://ors.datacite.org/${identifier}'
+    
+            payload.update({
+                    "_target": landing_page,
+                    "_status": status,
+                    "_profile": "NIHdc"
+                        })
+    
+            anvl_payload = outputAnvl(payload)
+    
+            mint_response = requests.post(
+                    auth = requests.auth.HTTPBasicAuth(self.auth[0], self.auth[1]),
+                    url=target,
+                    headers = {'Content-Type': 'text/plain; charset=UTF-8'},
+                    data = anvl_payload
                     )
 
-        # make sure the response message is succusfull
-        response_message = {"ezid": {
-                "status": api_response.get('status_code'), 
-                "messsage": api_response.get('content')
-                },
-            }
+        else:
+            target = "".join([self.endpoint, self.data.get('@id')]) 
 
-        # check if payload has expiration specification
-        if self.data.get('expires') is not None:
-            # TODO format from datetime to seconds
-            expiration_date = self.data.pop('expires')  
-            del_task = delete_task.apply_async(
-                    (target, self.auth[0], self.auth[1]),
-                    countdown = float(self.options.get('ttl') )
-                    )
-            response_message.update({"expires_in": expiration})
+            landing_page = self.data.get('url', 'https://ors.datacite.org/{}'.format(self.data.get('@id')) )
+    
+            payload.update({
+                    "_target": landing_page,
+                    "_status": status,
+                    "_profile": "NIHdc"
+                        })
 
-        return Response(
-                status=201,
-                response=json.dumps(response_message),
-                mimetype='application/json'
+            anvl_payload = outputAnvl(payload)
+
+            mint_response = requests.put(
+                auth = requests.auth.HTTPBasicAuth(self.auth[0], self.auth[1]),
+                url=target,
+                headers = {'Content-Type': 'text/plain; charset=UTF-8'},
+                data = anvl_payload
                 )
+
+
+        ezid_response = mint_response.content.decode('utf-8')
+        ezid_status = mint_response.status_code
+        ezid_identifier = ezid_response.replace('success: ', '').replace('error: ', '')
+
+        identifier = self.data.get('@id', ezid_identifier)
+
+
+        if ezid_status == 200 or ezid_status == 201:
+        
+            response_message = {
+                "@id": identifier,  
+                "message": "Successfully minted identifier",
+                "code": 201,
+                "ezid_response": {
+                        "status": ezid_status, 
+                        "message": ezid_response
+                        },
+                    }
+
+            if self.data.get('expires') is not None and status!="public":
+
+                try:
+                    expiration = self.data.pop('expires')  
+                    expiration_eta = parser.parse(expiration)
+                except:
+                    response_message.update({
+                        "expiration": 
+                            {
+                                'status': 400, 
+                                'message': 'Failed to parse date {}'.format(expiration)
+                                }
+                        })
+
+
+                task = delete_task.apply_async( 
+                        (target, self.auth[0], self.auth[1]),
+                        eta = parser.parse(expiration)
+                        )
+                
+                response_message.update({
+                    "expiration": {
+                        'status': 200, 
+                        'message': 'Identifier will be deleted',
+                        }
+                    })
+
+            return Response(
+                    status=201,
+                    response=json.dumps(response_message),
+                    mimetype='application/json'
+                    )
+
+
+        if mint_response.status_code == 401:
+            return Response(
+                    status = 401,
+                    response = json.dumps({
+                        '@id': identifier,
+                        'message': 'Failed To Mint Identifier' + 
+                        'ORS is not authorized on the prefix for identifer {}'.format(identifier),
+                        'ezid_response': {
+                            'code': ezid_status,
+                            'message': ezid_response
+                            }
+                        }),
+                    mimetype='application/json'
+                    )
+
+
+        else: 
+            if ezid_response == "error: bad request - identifier already exists":
+                successfully_updated = []
+                failed_updated = []
+                for field, value in payload.items(): 
+                    try:
+                        update_response = requests.post(
+                                auth = requests.auth.HTTPBasicAuth(self.auth[0], self.auth[1]),
+                                url = target,
+                                data = '{}: {}'.format(field, value)
+                                )
+                        assert update_response.status_code == 200
+                        successfully_updated.append(field)
+
+                    except AssertionError:
+                        failed_updated.append(field)
+
+                if len(failed_updated) == 0:
+                    response_message = {
+                                '@id': identifier,
+                                'code': 200,
+                                'message': 'Succsessfully Updated all Identifier metadata {}'.format(identifier),
+                                'updated_keys': successfully_updated,
+                                }
+
+
+                else:
+                    response_message = {
+                                '@id': identifier,
+                                'code': 207,
+                                'message': 'Failed to update Identifier metadata {}'.format(identifier),
+                                'updated_keys': successfully_updated,
+                                'failed_update': failed_updated
+                                }
+
+
+                if self.data.get('expires') is not None and status!="public":
+                    expiration = self.data.pop('expires')  
+                    try:
+                        expiration_datetime = parser.parse(expiration)
+                        exp = datetime.datetime.now() - expiration_datetime
+
+                        task = delete_task.apply_async(
+                                (target, self.auth[0], self.auth[1]),
+                                eta = expiration_datetime
+                                )
+
+                        response_message.update(
+                                {"expiration": 
+                                    {
+                                    'status': 200, 
+                                    'message': 'Identifier will be deleted in {} seconds'.format(exp.seconds),
+                                }
+                                    })
+                        
+                    except:
+                        response_message.update(
+                                {"expiration": 
+                                    {
+                                        'status': 400, 
+                                        'message': 'Failed to parse date {}'.format(expiration)
+                                        }
+                                    })
+
+
+
+
+
+
+
+                return Response(    
+                    status = response_message.get('code'),
+                    response = json.dumps(response_message),
+                    mimetype = 'application/json'
+                        )
+
+
+            else: 
+                return Response(
+                        status = 400,
+                        response = json.dumps({
+                            '@id': identifier,
+                            'message': 'Identifier Not Sucsessfully Minted',
+                            'ezid': {
+                                    'status': ezid_status,
+                                    'message': ezid_response 
+                                    }
+                                })
+                        )
+
 
 
 
@@ -563,8 +736,9 @@ class MissingKeys(Exception):
 
     def __init__(self, supplied_keys, required_keys): 
         missing_keys = list(set(required_keys).difference(set(supplied_keys)))
-        self.message = {
-                'error_message': 'Object missing required keys',
+        self.message = { 
+                'status': 400,
+                'message': 'Object missing required keys',
                 'missing_keys': missing_keys
                 }
 

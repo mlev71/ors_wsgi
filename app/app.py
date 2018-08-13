@@ -26,6 +26,8 @@ app.config['DEBUG'] = True
 app.config['TESTING'] = True
 app.config['SECRET_KEY'] = 'kYhD3X9@8Z}FeX2'
 
+LOGIN_URL = os.environ.get('LOGIN', 'https://ors.datacite.org')
+
 # configure bugsnag
 bugsnag.configure(
     api_key= os.environ.get('bugsnag_key'),
@@ -65,7 +67,10 @@ def login():
     """ Run Oauth2 flow with globus auth 
     """ 
     client = globus_sdk.ConfidentialAppAuthClient(CLIENT_ID, CLIENT_SECRET)
-    client.oauth2_start_flow(redirect_uri= url_for('login'), refresh_tokens=True)
+
+    client.oauth2_start_flow(
+            redirect_uri= LOGIN_URL, 
+            refresh_tokens=True)
 
     if 'code' not in request.args:
         authorize_url = client.oauth2_get_authorize_url() 
@@ -171,7 +176,7 @@ def register():
          
         payload = json.loads(request.data)
         if payload.get('email') is not None and payload.get('firstName') is not None and payload.get('lastName') is not None:
-            del_user = NeoUser.nodes.get_or_none(
+            del_user = UserNode.nodes.get_or_none(
                 email = payload.get('email'),
                 firstName = payload.get('firstName'),
                 lastName = payload.get('lastName') 
@@ -283,18 +288,7 @@ def MintArk(user):
 def DeleteArk(Shoulder, Id, user):
     GUID = 'ark:/'+Shoulder+'/'+Id
     ark = Ark(guid=GUID)
-
-    api_async = ark.deleteAPI() 
-    response_dict = api_async.get()
-
-    response_message = {
-            "api": {"status_code": response_dict.get('status_code'), "message": response_dict.get('content')},
-            }
-
-    return Response(
-            status= 200,
-            response = json.dumps(response_message)
-            )
+    return ark.delete_api()
 
 
 
@@ -324,14 +318,18 @@ def GetArk(Shoulder, Id):
             return err.html_response()
         else:
             return err.json_response()
-  
-
+    
+    
     if content_type == 'application/json' or content_type == 'application/ld+json':
         return Response(
                 status = 200, 
                 response = json.dumps(payload))
+    
     else:
-        return render_template('Ark.html', data = payload, profile = profile)
+        if profile == 'doi':
+            return render_template('Doi.html', data = payload)
+        else:
+            return render_template('Ark.html', data = payload, profile = profile)
 
 
 
@@ -344,7 +342,7 @@ def GetArk(Shoulder, Id):
 def MintDoi(user):
     if user.email != 'max.adam.levinson@gmail.com':
         return Response(
-                status = 405,
+                status = 403,
                 response = "You are not Authorized to Mint DOIs"
                 )
     
@@ -370,7 +368,7 @@ def MintDoi(user):
 def DeleteDoi(Shoulder, Id, user):
     if user.email != 'max.adam.levinson@gmail.com':
         return Response(
-                status = 405,
+                status = 403,
                 response = "You are not Authorized to Mint DOIs"
                 )
     GUID = Shoulder +'/'+ Id
@@ -394,7 +392,9 @@ def GetDoi(Shoulder, Id):
 
     GUID = Shoulder +'/'+ Id
    
-    datacite_request = requests.get(url = 'https://data.datacite.org/application/vnd.schemaorg.ld+json/'+ GUID)
+    datacite_request = requests.get(
+            url = 'https://data.datacite.org/application/vnd.schemaorg.ld+json/'+ GUID
+            )
 
     if datacite_request.status_code == 404:
         if content_type == 'text/html':
@@ -403,11 +403,23 @@ def GetDoi(Shoulder, Id):
             return Response(status=404,
                     response = json.dumps({
                         '@id': GUID, 
+                        'code': 404,
                         'url':'https://data.datacite.org/application/vnd.schemaorg.ld+json/'+ GUID,
                         'error': 'Doi Was not Found'}),
                     mimetype='application/ld+json')
 
     payload = json.loads(datacite_request.content.decode('utf-8'))
+
+
+    # get content contentURL from the works API
+    works_response = requests.get(url = 'https://api.datacite.org/works/'+GUID)
+
+    works = json.loads(works_response.content.decode('utf-8'))
+    media = works.get('data', {}).get('attributes').get('media')
+
+    payload['contentUrl'] = [media_elem.get('url') for media_elem in media]
+    payload['fileFormat'] = list(set([media_elem.get('media_type') for media_elem in media]))
+
 
     if content_type == 'text/html':
         return render_template('Doi.html', data = payload)
