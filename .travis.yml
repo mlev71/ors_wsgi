@@ -22,7 +22,7 @@ script:
 after_success:
    - set -e
    - docker login -u "$DOCKER_USERNAME" -p "$DOCKER_PASSWORD";
-   - REPO=jackofsum/ors_wsgi
+   - REPO=jackofsum/ors-wsgi
    - AUTO_DEPLOY=false;
    - docker build -f Dockerfile -t $REPO:latest .;
    - docker push $REPO:latest;
