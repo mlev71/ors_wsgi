@@ -28,116 +28,59 @@ CLIENT_SECRET = 'gdbcvA5K+3FmlmG0Ss8YMnPiwaABVieYqJ7neBv1raI='
 ADMIN_USERNAME = os.environ.get('ADMIN_USERNAME', 'ors_test')
 ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'ors_test')
 
-# open up pickle and load into global vars
-with open('email_hashed.p', 'rb') as pickle_file:
-    GLOBAL_SALT, EMAIL_HASHES = pickle.load(pickle_file)
-
-def validate_email(input_email):
-    if any([hash_email(input_email, GLOBAL_SALT)==stored_email for stored_email in EMAIL_HASHES]):
-        return True
-    else:
-        return False
-
-
-def hash_email(email, salt, iterations=1000):        
-    """ Iterativley hash emails
-    """
-    encoded_email = bytes(email, encoding='utf-8')
-    encoded_salt = bytes(salt, encoding='utf-8')
-    
-    email_hash = hashlib.sha3_512(encoded_email+encoded_salt).hexdigest()
-    
-    for _ in range(iterations):
-        email_hash = hashlib.sha3_512(
-            bytes(email_hash, encoding="utf-8")+encoded_email
-        ).hexdigest()
-    
-    return email_hash
-
-
-def auth_required(f):
-    ''' Wrapper for Route's that require authentication
- 
-    Checks the query parameters, authorization header, and session for the globus access_token
-    '''
-    @wraps(f)
-    def auth_wrap(*args, **kwargs): 
-
-        # connect to auth client
-        auth_client = globus_sdk.ConfidentialAppAuthClient(CLIENT_ID, CLIENT_SECRET)
-
-        # look for tokens in url as query params
-        access_token = request.args.get('code')
-
-        # look for tokens in the authorization header, trim the bearer part
-        if request.headers.get('Authorization') is not None:
-            access_token = request.headers.get('Authorization').replace('Bearer ', '')
-        
-        # look for tokens in the session 
-        if session.get('access_token') is not None:
-            access_token = session.get('access_token')
-
-        # if access_token is provided check it before refreshing
-        if access_token is not None:
-
-            # validate token
-            valid_token = auth_client.oauth2_validate_token(access_token)
-            if valid_token['active']==True:
-                ac = globus_sdk.AuthClient(authorizer = globus_sdk.AccessTokenAuthorizer(access_token))
-
-            else: 
-                return redirect(url_for('login'))
-
-            # inspect token to return list of identities
-            token_info = auth_client.oauth2_token_introspect(access_token, include='identities_set')
-            id_list = token_info.get('identities_set') 
-
-            # retrieve all identities associated with that token
-            identity_list = auth_client.get_identities(ids = id_list).data.get('identities')
-
-            
-            # if any of the identities are a member, return to authorized function
-            if any([validate_email(identity.get('email')) for identity in identity_list]):
-                return f(*args, **kwargs)
-
-            else: 
-                return redirect(url_for('register'))
-
-        else:
-            return redirect(url_for('login'))
-
-    return auth_wrap
-
-
-
 def globus_auth(f):
     ''' Wrapper for Route's that require authentication
     '''
     @wraps(f)
     def auth_wrap(*args, **kwargs): 
+        content_type = request.accept_mimetypes.best_match(
+                ['text/html', 'application/json', 'application/ld+json']
+                )
         access_token = session.get('access_token',
                 request.args.get('code', 
                     request.headers.get('Authorization')
                     )
                 )
 
+
         # if no token redirect to login 
         if access_token is None:
-            return redirect(url_for('login'))
+            if content_type == 'text/html': 
+                return redirect(url_for('login'))
+            else:
+                return Response(
+                        status = 405,
+                        response = json.dumps({'error': 'Please Provide your access token' })
+                        )
         else:
-            # look in the database for the user with that token
             access_token.replace('Bearer ', '')
+
+            # look in the database for the user with that token
             login = GlobusLoginNode.nodes.get_or_none(accessToken=access_token)
+
             if login is not None:
                 user = login.authenticates
                 if user is not None:
                     return f(user=user, *args, **kwargs)
 
                 else:
-                    return redirect(url_for('register'))
+                    if content_type == 'text/html':
+                        return redirect(url_for('register'))
+                    else:
+                        return Response(
+                                status = 405,
+                                response = json.dumps({'error': 'Please contact Max Levinson to be placed on the whitelist at mal8ch@virginia.edu'})
+                                )
             else:
-                return redirect(url_for('login'))
-
+                if content_type == 'text/html':
+                    return redirect(url_for('login'))
+                else:
+                    return Response(
+                            status = 405,
+                            response = json.dumps({
+                                'error': 'Token is not recognized, please login'
+                                })
+                            )
 
     return auth_wrap
 
@@ -146,7 +89,6 @@ class TeamNode(StructuredNode):
     element = StringProperty(required=True)
     kc = StringProperty(required=True)
 
-install_labels(TeamNode)
 
 class UserNode(StructuredNode):
     email = EmailProperty(unique_index=True, required=True)
@@ -156,7 +98,6 @@ class UserNode(StructuredNode):
     team = RelationshipTo('TeamNode', 'memberOf', cardinality=cardinality.ZeroOrOne)
     token = RelationshipTo('GlobusLoginNode', 'auth', cardinality=cardinality.ZeroOrOne)
 
-install_labels(UserNode)
 
 class GlobusLoginNode(StructuredNode):
     ''' Obtained by Logging in
@@ -168,7 +109,6 @@ class GlobusLoginNode(StructuredNode):
     authenticates = RelationshipTo('UserNode', 'authFor', cardinality=cardinality.ZeroOrOne)
     identities = RelationshipTo('GlobusIdentityNode', 'identity')
     
-install_labels(GlobusLoginNode)
 
 class InspectedTokenNode(StructuredNode): 
     email = EmailProperty(required=True, unique_index = True)
@@ -182,8 +122,6 @@ class InspectedTokenNode(StructuredNode):
     login = RelationshipTo('GlobusLoginNode', 'detailsFor')
 
 
-install_labels(InspectedTokenNode)
-
 
 class GlobusIdentityNode(StructuredNode):
     email = EmailProperty()
@@ -195,7 +133,6 @@ class GlobusIdentityNode(StructuredNode):
 
 
 
-install_labels(GlobusIdentityNode)
 
 class GlobusToken():
     authClient = globus_sdk.ConfidentialAppAuthClient(CLIENT_ID, CLIENT_SECRET)
@@ -267,4 +204,21 @@ class GlobusToken():
             if matched_user is not None and self.login_node.authenticates is None:
                 self.login_node.authenticates.connect(matched_user)
 
+# Create Test Credentials 
+try:
+    install_labels(TeamNode)
+    install_labels(UserNode)
+    install_labels(GlobusLoginNode)
+    install_labels(InspectedTokenNode)
+    install_labels(GlobusIdentityNode)
+
+    test_user = UserNode(email='mal8ch@virginia.edu', firstName='TEST', lastName='TEST')
+    test_globus_login = GlobusLoginNode(refreshToken='TEST',accessToken='TEST')
+
+    test_user.save()
+    test_globus_login.save()
+
+    test_globus_login.authenticates.connect(test_user)
+except:
+    pass
 

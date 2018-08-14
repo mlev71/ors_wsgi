@@ -9,3 +9,4 @@ pycrypto
 lxml
 bugsnag
 neomodel
+python-dateutil

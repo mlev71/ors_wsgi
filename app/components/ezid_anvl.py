@@ -18,7 +18,6 @@ restricted_keys = {
 
 
 def unroll(anvl):
-
     # determine object keys
     unique_root_keys = set([key.split('.')[0] for key in anvl.keys() if len(key.split('.')) ==2 ])
 

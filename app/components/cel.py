@@ -58,12 +58,9 @@ def delete_task(target, user, password):
             timeout  = (connect_timeout, read_timeout)
             )
 
-    response_dict = {
-        'status_code': response.status_code,
-        'content' :response.content.decode('utf-8')
-            }
+    assert response.status_code == 200
 
-    return response_dict
+    return {'response': response.content.decode('utf-8')}
 
 
 

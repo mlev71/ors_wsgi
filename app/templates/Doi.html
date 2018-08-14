@@ -41,28 +41,80 @@
             <!-- required keys --> 
             <table>
                <tr>
-                  <th> Name </th>
+                  <th class='metadataKey' > Name </th>
                   <th itemprop="name">{{data['name']}}</th>
                </tr>
 
-               <tr> 
-                  <th>Identifier </th>
-                  <th itemprop="identifier"><a href="{{data['@id']}}"> {{data['@id']}} </a></th>
-               </tr> 
 
+            {% if data['identifier'] is string or data['identifier']|length == 1%}
+            <tr>
+               <th class='metadataKey'>Identifier</th>
+               <th class='metadataVal'>{{data['identifier']}}</th>
+            </tr>
+            {% elif data['identifier'] is iterable and data['identifier']|length>1 %}
+            <tr>
+               <th class='metadataKey'> Identifiers </th>
+               <th> 
+                  <table>
+                  {% for id in data['identifier'] %}
+                     {% if id is string %}
+                     <tr> <th class='metadataVal'> <a href="{{id}}"> {{id}} </a>  </th> </tr>
+                     {% endif %} 
+                  {% endfor %}
+                  </table>
+               </th>
+            </tr>
+            {% endif %}
+
+
+            {% if data['url'] is defined %}
+               <tr>
+                  <th class='metadataKey'>Landing Page</th>
+                  <th class='metadataVal'><a href="{{data['url']}}"> {{data['url']}} </a></th>
+               </tr>
+            {% endif %}
                
-               {% if data['author'] is defined %}
-               <tr>
-                  <th> Author </th>
-                  <th itemprop="author">{{data['author']['name']}}</th>
-               </tr>
-               {% endif %}
+            {% if data['author'] is mapping %}
+            <tr>
+               <th class='metadataKey'> Author </th>
+               <th class='metadataVal' itemprop="author">{{data['author']['name']}}</th>
+            </tr>
+
+            {% elif data['author'] is string%}
+            <tr>
+               <th class='metadataKey'>Author</th>
+               <th class='metadataVal' itemprop="author">{{data['author']}}</th>
+            </tr>
+
+            {% elif data['author'] is iterable%}
+            <tr>
+               <th class='metadataKey'>Authors</th>
+               <th>
+                  <table>
+                  {% for author in data['author'] %}
+                     {% if author is string %}
+                     <tr><th class='metadataVal'>{{author}}</th></tr>
+                     {% elif author is mapping %}
+                        {% if author['@id'] is defined %}
+                           <tr>
+                              <th class='metadataVal'>{{author['name']}}</th>
+                              <th>{{author['@id']}}</th>
+                           </tr>
+                        {% else %}
+                           <tr><th class='metadataVal'>{{author['name']}} </th></tr>
+                        {% endif %}
+                     {% endif %}
+                  {% endfor %}
+                  </table>
+               </th>
+            </tr>
+            {% endif %}
 
 
-               <tr>
-                  <th> Date Published </th>
-                  <th itemprop="datePublished">{{data['datePublished']}}</th>
-               </tr>
+            <tr>
+               <th class='metadataKey'> Date Published </th>
+               <th class='metadataVal' itemprop="datePublished">{{data['datePublished']}}</th>
+            </tr>
         
 
                {% if data['dateCreated'] is defined %}
@@ -109,13 +161,24 @@
                </tr>
                {% endif %}
 
+
+               {% if  data['publisher'] is defined %}
+               <tr>
+                  <th> Publisher </th>
+                  {% if data['publisher'] is string %}
+                  <th>{{data['publisher']}}</th>
+                  {% elif data['publisher'] is mapping %}
+                  <th>{{data['publisher']['name']}} </th>
+                  {% endif %}
+               </tr>
+               {% endif %}
+
             </table>
          </div>
       
          <!-- file description metadata -->
 
          <div id="file_container" class='container'>
-            <h2 class='container_header'> File Metadata </h2>
             <table>
             {% if data['contentSize'] is defined %} 
                <tr>
@@ -161,32 +224,28 @@
 
 
          <!-- relationships -->
-         {% if data['includedInDataCatalog'] is defined %}
+         {% if data['isPartOf'] is defined %}
          <div id='rel_container' class='container'>
                <h2 class='container_header'> Identifier Relationships </h2>
 
-               {% if data['includedInDataCatalog'] is mapping %}
+               {% if data['isPartOf'] is mapping %}
                <h3> Included In Data Catalog </h3>
                   <table itemprop="includedInDataCatalog">
                      <tr>
-                        <th> Data Catalog </th>
-                        <th> Identifier </th>
+                        <th> Catalog Name </th>
+                        <th> {{data['isPartOf']['name']}} </th>
                      </tr>
 
+                     {% if data['isPartOf']['@id'] is defined %}
                      <tr> 
-                        <th> <a href="{{data['includedInDataCatalog']['@id']}}"> {{data['includedInDataCatalog']['name']}} </a> </th>
-                        <th> {{data['includedInDataCatalog']['@id']}} </th>
+                        <th> Data Catalog Id
+                        <th> {{data['isPartOf']['@id']}} </th>
                      </tr>
+                     {% endif %}
 
                      
                   </table>
 
-               {% else %}
-               <table>
-                  <tr>
-                     <th itemprop="includedInDataCatalog"> <a href="{{data['includedInDataCatalog']}}">{{data['includedInDataCatalog']}}</a> </th>
-
-                  </tr> 
                {% endif %}
 
 
@@ -218,19 +277,13 @@
                   </tr> 
                   {% endif %}
 
-                  {% if data['isPartOf'] is defined %} 
-                  <tr>
-                     <th> Is Part Of </th>
-                     <th itemprop="hasPart"> {{data['hasPart']}} </th>
-                  </tr> 
-                  {% endif %}
                </table>
         
          </div>
          {% endif %}
 
          <!-- funder data --> 
-         {% if data['funder'] is defined %} 
+         {% if data['funding'] is defined %} 
          <div id='funder_container' class='container'>
             <h2 class='container_header'> Funding Metadata </h2>        
             <table>
@@ -239,7 +292,7 @@
                   <th> Identifier </th>
                   <th> Type </th>
                </tr>
-            {% for funder in data['funder'] %}
+            {% for funder in data['funding'] %}
                <tr itemtype="http://schema.org/funder">
                   <th itemprop="name"> {{funder['name']}} </th>
 
@@ -255,6 +308,12 @@
          </div>
          {% endif %}
       </div>
+
+      <div class="container"> 
+         <h2> JSON-LD </h2>
+         <p>{{data|tojson|safe}}</p>
+      </div>
+
    </body>
    {% endblock %}
 

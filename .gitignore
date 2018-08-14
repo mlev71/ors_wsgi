@@ -5,3 +5,6 @@ todo.txt
 *.swp
 *.pyc
 *.p
+.DS_STORE
+*.swo
+*.swn

@@ -22,8 +22,8 @@ from app.components.mds_xml import *
 
 
 EZID = 'https://ezid.cdlib.org/id/'
-EZID_USER = os.environ.get('EZID_USER')
-EZID_PASSWORD = os.environ.get('EZID_PASSWORD')
+EZID_USER = os.environ.get('EZID_USER', 'cdl_dcppc')
+EZID_PASSWORD = os.environ.get('EZID_PASSWORD', 'ezid2018')
 
 DATACITE_USER = os.environ.get('DATACITE_USER')
 DATACITE_PASSWORD = os.environ.get('DATACITE_PASSWORD')
@@ -686,6 +686,12 @@ class Minid(object):
         self.json_ld = json_ld
      
         return json_ld
+
+############################
+#  Neomodel representation #
+############################
+
+
 
    
 #####################

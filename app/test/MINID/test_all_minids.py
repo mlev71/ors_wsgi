@@ -14,7 +14,7 @@ import logging
 logging.basicConfig(filename='minid.log', filemode ='w', level=logging.INFO)
 
 
-with open('app/test/minids.txt', 'r') as minid_file:
+with open('app/test/MINID/minids.txt', 'r') as minid_file:
     bulk_minids = minid_file.read().splitlines()
 
 
