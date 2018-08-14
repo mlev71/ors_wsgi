@@ -1,0 +1,27 @@
+language: python
+
+services:
+   - docker
+
+
+before_install:
+   - apt-get update -y
+   - apt-get upgrade -y
+   - apt-get install -y python3 python3-pip build-essential
+
+
+install:
+   - pip3 install --upgrade pip
+   - pip3 install -r requirements.txt
+   - pip3 install mock nose
+
+
+script:
+   - python app/test/
+
+
+deploy:
+   - docker build -t jackofsum/ors_wsgi . 
+   - echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
+   - docker push USER/REPO
+
