@@ -17,7 +17,7 @@ install:
 
 
 script:
-   - python app/test/
+   - python3 app/test/
 
 after_success:
    - set -e
