@@ -22,11 +22,12 @@ script:
 after_success:
    - set -e
    - docker login -u "$DOCKER_USERNAME" -p "$DOCKER_PASSWORD";
+   - AUTO_DEPLOY_STAGE="true"
    - REPO=jackofsum/ors-wsgi
    - docker build -f Dockerfile -t $REPO:latest .;
    - docker push $REPO:latest;
    - echo "Pushed to" $REPO:latest;
-   - if ["$AUTO_DEPLOY" == "true"]; then
+   - if [ $AUTO_DEPLOY_STAGE == "true"]; then
      wget https://github.com/jwilder/dockerize/releases/download/v0.6.0/dockerize-linux-amd64-v0.6.0.tar.gz;
      tar -xzvf dockerize-linux-amd64-v0.6.0.tar.gz;
      rm dockerize-linux-amd64-v0.6.0.tar.gz;

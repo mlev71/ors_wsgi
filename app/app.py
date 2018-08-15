@@ -1,5 +1,6 @@
 #!/usr/bin/env python3 
 from flask import Flask, render_template, request, Response, session, redirect, url_for
+import uwsgi
 
 import globus_sdk
 import json
@@ -26,7 +27,7 @@ app.config['DEBUG'] = True
 app.config['TESTING'] = True
 app.config['SECRET_KEY'] = 'kYhD3X9@8Z}FeX2'
 
-LOGIN_URL = os.environ.get('LOGIN', 'https://ors.datacite.org')
+LOGIN_URL = os.environ.get('LOGIN', 'https://ors.datacite.org/login')
 
 # configure bugsnag
 bugsnag.configure(
@@ -41,7 +42,12 @@ bugsnag.notify(Exception('Test Error on Starting Application'))
 #            General                #
 #####################################
 
-# @app.before_request
+#@app.before_request
+#def log_request_info():
+    # format logs into logstash
+    #app.logger.info('Headers: %s', request.headers)
+    #app.logger.info('Body: %s', request.get_data())
+
 # @app.after_request
 
 @app.route('/', methods = ['GET'])
@@ -431,8 +437,9 @@ def GetDoi(Shoulder, Id):
 
 
 from bugsnag.wsgi.middleware import BugsnagMiddleware
-app = BugsnagMiddleware(app)
 
 if __name__=="__main__":
-    app.run(use_debugger= True, debug=app.debug, use_reloader=True, host='0.0.0.0')
+
+    full_app = BugsnagMiddleware(app)
+    full_app.run(use_debugger= True, debug=app.debug, use_reloader=True, host='0.0.0.0')
 

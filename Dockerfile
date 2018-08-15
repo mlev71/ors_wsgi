@@ -1,4 +1,3 @@
-# Dockerfile for the full application
 FROM ubuntu:latest
 
 RUN apt-get update -y
@@ -22,7 +21,3 @@ COPY app/ app/
 
 EXPOSE 3031
 ENTRYPOINT [ "uwsgi", "--ini", "http.ini"]
-
-#EXPOSE 8080
-#ENTRYPOINT [ "uwsgi", "--master", "--https", "0.0.0.0:8443,foobar.key,foobar.crt" ]
-
