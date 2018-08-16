@@ -1,8 +1,6 @@
    
 {% extends "base.html" %} 
 
-
-
       <!--Dublin Core Embedding for Doi-->
    {% block dchead %}
       <script type="application/ld+json">
@@ -42,14 +40,14 @@
             <table>
                <tr>
                   <th class='metadataKey' > Name </th>
-                  <th itemprop="name">{{data['name']}}</th>
+                  <th itemprop="name" class="metadataVal name">{{data['name']}}</th>
                </tr>
 
 
             {% if data['identifier'] is string or data['identifier']|length == 1%}
             <tr>
                <th class='metadataKey'>Identifier</th>
-               <th class='metadataVal'>{{data['identifier']}}</th>
+               <th class='metadataVal identifier'>{{data['identifier']}}</th>
             </tr>
             {% elif data['identifier'] is iterable and data['identifier']|length>1 %}
             <tr>
@@ -58,7 +56,7 @@
                   <table>
                   {% for id in data['identifier'] %}
                      {% if id is string %}
-                     <tr> <th class='metadataVal'> <a href="{{id}}"> {{id}} </a>  </th> </tr>
+                     <tr> <th class='metadataVal identifier'> <a href="{{id}}"> {{id}} </a>  </th> </tr>
                      {% endif %} 
                   {% endfor %}
                   </table>
@@ -70,20 +68,20 @@
             {% if data['url'] is defined %}
                <tr>
                   <th class='metadataKey'>Landing Page</th>
-                  <th class='metadataVal'><a href="{{data['url']}}"> {{data['url']}} </a></th>
+                  <th class='metadataVal url'><a href="{{data['url']}}"> {{data['url']}} </a></th>
                </tr>
             {% endif %}
                
             {% if data['author'] is mapping %}
             <tr>
                <th class='metadataKey'> Author </th>
-               <th class='metadataVal' itemprop="author">{{data['author']['name']}}</th>
+               <th class='metadataVal author' itemprop="author">{{data['author']['name']}}</th>
             </tr>
 
             {% elif data['author'] is string%}
             <tr>
                <th class='metadataKey'>Author</th>
-               <th class='metadataVal' itemprop="author">{{data['author']}}</th>
+               <th class='metadataVal author' itemprop="author">{{data['author']}}</th>
             </tr>
 
             {% elif data['author'] is iterable%}
@@ -93,11 +91,11 @@
                   <table>
                   {% for author in data['author'] %}
                      {% if author is string %}
-                     <tr><th class='metadataVal'>{{author}}</th></tr>
+                     <tr><th class='metadataVal author'>{{author}}</th></tr>
                      {% elif author is mapping %}
                         {% if author['@id'] is defined %}
                            <tr>
-                              <th class='metadataVal'>{{author['name']}}</th>
+                              <th class='metadataVal author'>{{author['name']}}</th>
                               <th>{{author['@id']}}</th>
                            </tr>
                         {% else %}
@@ -113,62 +111,62 @@
 
             <tr>
                <th class='metadataKey'> Date Published </th>
-               <th class='metadataVal' itemprop="datePublished">{{data['datePublished']}}</th>
+               <th class='metadataVal datePublished' itemprop="datePublished">{{data['datePublished']}}</th>
             </tr>
         
 
                {% if data['dateCreated'] is defined %}
                <tr>
                   <th> Date Created </th>
-                  <th itemprop="dateCreated"> {{data['dateCreated']}}</th>
+                  <th itemprop="dateCreated" class="metadataVal dateCreated"> {{data['dateCreated']}}</th>
                </tr>
                {% endif %}
 
 
                {% if data['additionalType'] is defined %}
                <tr>
-                  <th> Additional Type </th>
-                  <th itemprop="additionalType"> {{data['additionalType']}} </th>
+                  <th class="metadataKey"> Additional Type </th>
+                  <th class="metadataVal additionalType" itemprop="additionalType"> {{data['additionalType']}} </th>
                </tr>
                {% endif %}
 
 
                {% if data['description'] is defined %}
                <tr>
-                  <th> Description </th>
-                  <th itemprop="description"> {{data['description']}} </th>
+                  <th class= "metadataKey"> Description </th>
+                  <th class="metadataVal description" itemprop="description"> {{data['description']}} </th>
                </tr>
                {% endif %}
 
                {% if data['keywords'] is defined %}
                <tr>
-                  <th> Keywords </th>
-                  <th itemprop="keywords"> {{data['keywords']}} </th>
+                  <th class="metadataKey"> Keywords </th>
+                  <th class="metadataVal keywords" itemprop="keywords"> {{data['keywords']}} </th>
                </tr>
                {% endif %}
 
                {% if data['license'] is defined %}
                <tr>
-                  <th> License </th>
-                  <th itemprop="license"> {{data['license']}} </th>
+                  <th class="metadataKey"> License </th>
+                  <th class="metadataVal liscence" itemprop="license"> {{data['license']}} </th>
                </tr>
                {% endif %}
                
                {% if data['version'] is defined %}
                <tr>
-                  <th> Version </th>
-                  <th itemprop="version"> {{data['version']}} </th>
+                  <th class="metadataKey"> Version </th>
+                  <th class="metadataVal version" itemprop="version"> {{data['version']}} </th>
                </tr>
                {% endif %}
 
 
                {% if  data['publisher'] is defined %}
                <tr>
-                  <th> Publisher </th>
+                  <th class="metadataKey"> Publisher </th>
                   {% if data['publisher'] is string %}
-                  <th>{{data['publisher']}}</th>
+                  <th class="metadataVal publisher">{{data['publisher']}}</th>
                   {% elif data['publisher'] is mapping %}
-                  <th>{{data['publisher']['name']}} </th>
+                  <th class="metadataVal publisher">{{data['publisher']['name']}} </th>
                   {% endif %}
                </tr>
                {% endif %}
@@ -182,30 +180,34 @@
             <table>
             {% if data['contentSize'] is defined %} 
                <tr>
-                  <th> Content Size </th>
-                  <th> {{data['contentSize']}} </th>
+                  <th class="metadataKey"> Content Size </th>
+                  <th class="metadataVal contentSize"> {{data['contentSize']}} </th>
                </tr>
             
             {% endif %}
             
             {% if data['fileFormat'] is defined %}
                <tr>
-                  <th> File Format </th>
-                  <th> {{data['fileFormat']}} </th>
+                  <th class="metadataKey"> File Format </th>
+                  <th class="metadataVal fileFormat"> {{data['fileFormat']}} </th>
                </tr>
 
             {% endif %}
 
             {% if data['contentUrl'] is defined %}
             <tr>
-               <th> Cloud Locations </th>
+               <th class="metadataKey"> Cloud Locations </th>
+               {% if data['contentUrl'] is iterable %}
                <th> 
                   <ul>
                   {% for cloud_location in data['contentUrl'] %}
-                  <li> <a href="{{cloud_location}}"> {{cloud_location}} </a>  </li>
+                  <li> <a href="{{cloud_location}}" class="metadataVal contentUrl"> {{cloud_location}} </a>  </li>
                   {% endfor %}
                   </ul>
-               <th>
+               </th>
+               {% elif data['contentUrl'] is string %}
+               <th class="metadataVal contentUrl"> {{data['contentUrl'] }}</th>
+               {% endif %}
             </tr>
             {% endif %}
 
@@ -218,7 +220,7 @@
          {% if data['citation'] is defined %}
          <div id='citation_container' class='container'>
             <h2 class='container_header'> Citation </h2>
-            <p itemprop='citation'> {{data['citation']}} </p>
+            <p itemprop='citation' class="metadataVal citation"> {{data['citation']}} </p>
          </div>
          {% endif %}
 
@@ -233,7 +235,7 @@
                   <table itemprop="includedInDataCatalog">
                      <tr>
                         <th> Catalog Name </th>
-                        <th> {{data['isPartOf']['name']}} </th>
+                        <th class="metadataVal isPartOf"> {{data['isPartOf']['name']}} </th>
                      </tr>
 
                      {% if data['isPartOf']['@id'] is defined %}
@@ -252,28 +254,28 @@
                   {% if data['isBasedOn'] is defined %}
                   <tr>
                      <th> Is Based On </th>
-                     <th itemprop="isBasedOn"> {{data['isBasedOn']}} </th>
+                     <th itemprop="isBasedOn" class="metadataVal isBasedOn"> {{data['isBasedOn']}} </th>
                   </tr> 
                   {% endif %}
 
                   {% if data['PredecesorOf'] is defined %}
                   <tr>
                      <th> Predecessor Of </th>
-                     <th itemprop="PredecessorOf"> {{data['PredecessorOf']}} </th>
+                     <th itemprop="PredecessorOf" class="metadataVal PredecessorOf"> {{data['PredecessorOf']}} </th>
                   </tr> 
                   {% endif %}
 
                   {% if data['successorOf'] is defined %}
                   <tr>
                      <th> Successor Of </th>
-                     <th itemprop="successorOf"> {{data['successorOf']}} </th>
+                     <th itemprop="successorOf" class="metadataVal successorOf"> {{data['successorOf']}} </th>
                   </tr> 
                   {% endif %}
 
                   {% if data['hasPart'] is defined %}
                   <tr>
                      <th> Has Part </th>
-                     <th itemprop="hasPart"> {{data['hasPart']}} </th>
+                     <th itemprop="hasPart" class="metadataVal hasPart"> {{data['hasPart']}} </th>
                   </tr> 
                   {% endif %}
 
@@ -294,11 +296,11 @@
                </tr>
             {% for funder in data['funding'] %}
                <tr itemtype="http://schema.org/funder">
-                  <th itemprop="name"> {{funder['name']}} </th>
+                  <th itemprop="name" class="metadataVal funderName"> {{funder['name']}} </th>
 
-                  <th itemprop="@id"> <a href="{{funder['@id']}}"> {{funder['@id']}} </a> </th>
+                  <th itemprop="@id"> <a href="{{funder['@id']}}" class="metadataVal funderId"> {{funder['@id']}} </a> </th>
 
-                  <th itemprop="@type"> {{funder['@type']}} </th>
+                  <th itemprop="@type" class="metadataVal funderType"> {{funder['@type']}} </th>
 
                </tr>
 
