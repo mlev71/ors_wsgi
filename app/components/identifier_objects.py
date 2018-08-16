@@ -27,7 +27,7 @@ EZID_PASSWORD = os.environ.get('EZID_PASSWORD', 'ezid2018')
 
 DATACITE_USER = os.environ.get('DATACITE_USER')
 DATACITE_PASSWORD = os.environ.get('DATACITE_PASSWORD')
-DATACITE_URL = os.environ.get('DATACITE_URL', 'https://mds.test.datacite.org')
+DATACITE_URL = os.environ.get('DATACITE_URL')
 
 
 # file extension to mimetype conversions
@@ -77,54 +77,7 @@ class CoreMetadata(object):
             if not set(self.required_keys).issubset(set(self.data.keys())):
                 raise MissingKeys(self.data.keys(), self.required_keys)
  
-
-
-    def deleteAPI(self):
-        ''' Add delete to task queue and return the asnyc result
-        '''
-        target = "".join([self.endpoint, self.guid ]) 
-        del_task = delete_task.delay(target, self.auth[0], self.auth[1])
-        return del_task
-
-
-    def deleteCache(self):
-        ''' Use connection to neo to delete own guid
-        '''
-
-        return self.neo_driver.deleteCache(self.guid)
-
-
-    def getDownloads(self):
-        ''' Decrypt the cloud bucket locations
-        '''
-        with self.neo_driver.driver.session() as session:
-            with session.begin_transaction() as tx:
-                aws = tx.run(
-                        "MATCH (node)-[:AWSdownload]->(aws) WHERE node.guid=$guid "
-                        "RETURN properties(aws) ",
-                        guid = self.guid
-                        )
-                aws_data = aws.data()
-
-                gpc = tx.run(
-                        "MATCH (node)-[:GPCdownload]->(gpc) WHERE node.guid=$guid "
-                        "RETURN properties(gpc) ",
-                        guid = self.guid
-                        )
-                gpc_data = gpc.data()
-
-        aws_dict, gpc_dict = None
-
-        if len(aws_data)!=0:
-            aws_dict = aws_data[0].get('properties(aws)')
-            aws_dict['url'] = cipher.decrypt(aws_dict['url'])
-
-        if len(gpc_data)!=0:
-            gpc_dict = gpc_data[0].get('properties(gpc)')
-            aws_dict['url'] = cipher.decrypt(aws_dict['url'])
-            
-        return  {'aws': aws_dict, 'gpc': gpc_dict }
-       
+     
 
 class Ark(CoreMetadata):
     required_keys = set(['name','author', 'dateCreated']) 
@@ -564,8 +517,53 @@ class Doi(CoreMetadata):
 
         return response
 
- 
-    def fetch(self):
+
+    def fetch(self, content_type):
+        datacite_request = requests.get(
+                url = 'https://data.datacite.org/application/vnd.schemaorg.ld+json/'+ self.guid
+                )
+
+        if datacite_request.status_code == 404:
+            if content_type == 'text/html':
+                template = jinja_env.get_template('DoiNotFound.html')
+                return Response(status=404,
+                        response = template.render(doi= 'http://doi.org/'+self.guid),
+                        mimetype='text/html')
+            else:
+                return Response(status=404,
+                        response = json.dumps({
+                            '@id': GUID, 
+                            'code': 404,
+                            'url':'https://data.datacite.org/application/vnd.schemaorg.ld+json/'+ self.guid,
+                            'error': 'Doi Was not Found'}),
+                        mimetype='application/ld+json')
+
+        payload = json.loads(datacite_request.content.decode('utf-8'))
+
+
+        # get content contentURL from the works API
+        works_response = requests.get(url = 'https://api.datacite.org/works/'+ self.guid)
+
+        works = json.loads(works_response.content.decode('utf-8'))
+        media = works.get('data', {}).get('attributes').get('media')
+
+        payload['contentUrl'] = [media_elem.get('url') for media_elem in media]
+        payload['fileFormat'] = list(set([media_elem.get('media_type') for media_elem in media]))
+
+
+        if content_type == 'text/html':
+            template = jinja_env.get_template('Doi.html')
+            return Response(status=200, 
+                    response = template.render(data = payload),
+                    mimetype = 'text/html')
+        else:
+            return Response(status=200,
+                    response = json.dumps(payload),
+                    mimetype = 'application/ld+json'
+                    )
+
+
+    def fetch_works(self):
         works_response = requests.get(url = 'https://api.datacite.org/works/'+self.guid)
 
         try:
@@ -646,7 +644,6 @@ class Minid(object):
             raise Identifier404(self.ark, minid_response, self.anvl.get('_target'))
 
         self.minid_json = json.loads(minid_response.content.decode('utf-8'))
-
 
          
     def to_json_ld(self): 

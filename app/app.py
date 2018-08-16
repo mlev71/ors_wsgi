@@ -27,7 +27,7 @@ app.config['DEBUG'] = True
 app.config['TESTING'] = True
 app.config['SECRET_KEY'] = 'kYhD3X9@8Z}FeX2'
 
-LOGIN_URL = os.environ.get('LOGIN', 'https://ors.datacite.org/login')
+LOGIN_URL = os.environ.get('LOGIN')
 
 # configure bugsnag
 bugsnag.configure(
@@ -73,6 +73,7 @@ def login():
     """ Run Oauth2 flow with globus auth 
     """ 
     client = globus_sdk.ConfidentialAppAuthClient(CLIENT_ID, CLIENT_SECRET)
+
 
     client.oauth2_start_flow(
             redirect_uri= LOGIN_URL, 
@@ -395,45 +396,10 @@ def DeleteDoi(Shoulder, Id, user):
 @app.route('/doi:/<path:Shoulder>/<path:Id>', methods = ['GET'])
 def GetDoi(Shoulder, Id): 
     content_type = request.accept_mimetypes.best_match(['text/html', 'application/json', 'application/ld+json'])
-
     GUID = Shoulder +'/'+ Id
+    doi = Doi(guid=GUID)
+    return doi.fetch(content_type)
    
-    datacite_request = requests.get(
-            url = 'https://data.datacite.org/application/vnd.schemaorg.ld+json/'+ GUID
-            )
-
-    if datacite_request.status_code == 404:
-        if content_type == 'text/html':
-            return render_template('DoiNotFound.html', doi= 'http://doi.org/'+self.guid)
-        else:
-            return Response(status=404,
-                    response = json.dumps({
-                        '@id': GUID, 
-                        'code': 404,
-                        'url':'https://data.datacite.org/application/vnd.schemaorg.ld+json/'+ GUID,
-                        'error': 'Doi Was not Found'}),
-                    mimetype='application/ld+json')
-
-    payload = json.loads(datacite_request.content.decode('utf-8'))
-
-
-    # get content contentURL from the works API
-    works_response = requests.get(url = 'https://api.datacite.org/works/'+GUID)
-
-    works = json.loads(works_response.content.decode('utf-8'))
-    media = works.get('data', {}).get('attributes').get('media')
-
-    payload['contentUrl'] = [media_elem.get('url') for media_elem in media]
-    payload['fileFormat'] = list(set([media_elem.get('media_type') for media_elem in media]))
-
-
-    if content_type == 'text/html':
-        return render_template('Doi.html', data = payload)
-    else:
-        return Response(status=200,
-                response = json.dumps(payload),
-                mimetype = 'application/ld+json'
-                )
 
 
 from bugsnag.wsgi.middleware import BugsnagMiddleware

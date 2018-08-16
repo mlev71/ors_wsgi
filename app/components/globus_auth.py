@@ -14,16 +14,16 @@ from neomodel import (config, StructuredNode, EmailProperty, StringProperty, JSO
                       DateTimeProperty, RelationshipTo, RelationshipFrom, install_labels, cardinality)
 import datetime, base64, json
 
-NEO_PASSWORD = os.environ.get('NEO_PASSWORD', 'localtest')
-NEO_URL = os.environ.get('NEO_URL', 'localhost')
+NEO_PASSWORD = os.environ.get('NEO_PASSWORD')
+NEO_URL = os.environ.get('NEO_URL')
 
 config.DATABASE_URL = 'bolt://neo4j:'+ NEO_PASSWORD +'@'+ NEO_URL +':7687'
 
 
 # globus auth global constants
-CLIENT_ID = 'd0b62e2d-a6df-44cc-adf7-b4a1ead2178a'
-CLIENT_IDENTITY_USERNAME = 'd0b62e2d-a6df-44cc-adf7-b4a1ead2178a@clients.auth.globus.org'
-CLIENT_SECRET = 'gdbcvA5K+3FmlmG0Ss8YMnPiwaABVieYqJ7neBv1raI='
+CLIENT_ID = os.environ.get('GLOBUS_CLIENT')
+CLIENT_USERNAME = os.environ.get('GLOBUS_USERNAME')
+CLIENT_SECRET = os.environ.get('GLOBUS_SECRET')
 
 ADMIN_USERNAME = os.environ.get('ADMIN_USERNAME', 'ors_test')
 ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'ors_test')
