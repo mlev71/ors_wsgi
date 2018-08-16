@@ -9,7 +9,6 @@ from app.components.identifier_objects import Ark, Identifier404
 
 
 
-
 with open('app/test/ARK/nihdc.txt', 'r') as nihdc:
     nihdc_examples = nihdc.read().splitlines()
 
@@ -29,8 +28,7 @@ all_examples = erc_examples + datacite_examples + nihdc_examples + empty_example
 def test_ark_get(identifier):
     ''' Get the Metadata Back from EZID
     '''
-    ark = Ark(guid=identifier)
-    
+    ark = Ark(guid=identifier) 
     assert_is_not_none(ark)
     try:
         ark.fetch()

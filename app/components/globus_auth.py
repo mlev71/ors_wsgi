@@ -25,8 +25,8 @@ CLIENT_ID = os.environ.get('GLOBUS_CLIENT')
 CLIENT_USERNAME = os.environ.get('GLOBUS_USERNAME')
 CLIENT_SECRET = os.environ.get('GLOBUS_SECRET')
 
-ADMIN_USERNAME = os.environ.get('ADMIN_USERNAME', 'ors_test')
-ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'ors_test')
+ADMIN_USERNAME = os.environ.get('ADMIN_USERNAME')
+ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD')
 
 def globus_auth(f):
     ''' Wrapper for Route's that require authentication
