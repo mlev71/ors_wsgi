@@ -1,4 +1,5 @@
 language: python
+
 python:
    - "3.6"
 
@@ -30,17 +31,15 @@ after_success:
    - rm dockerize-linux-amd64-v0.6.0.tar.gz;
    - export GIT_SHA=$(git rev-parse --short HEAD);
    - export GIT_TAG="latest";
-   - git clone "https://github.com/mlev71/mastino.git";
+   - git clone "https://${GIT_TOKEN}@github.com/mlev71/mastino.git";
    - git remote add upstream https://github.com/datacite/mastino.git;
    - git fetch upstream;
    - git merge origin/master;
    - ./dockerize -template _wsgi.auto.tfvars.tmpl:mastino/stage/services/ors/_wsgi.auto.tfvars;
    - cd mastino;
-   - git config user.email ${GIT_EMAIL};
-   - git config user.name ${GIT_USERNAME};
    - git add stage/services/ors/_wsgi.auto.tfvars;
    - git commit -m "Updating ORS wsgi variables for latest commit";
-   - git push "https://github.com/mlev71/mastino.git" master;
+   - git push "https://${GIT_TOKEN}@github.com/mlev71/mastino.git" master;
 
 
 notifications:
