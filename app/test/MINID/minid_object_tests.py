@@ -2,8 +2,8 @@ import requests, json
 from unittest.mock import MagicMock, patch
 from nose.tools import assert_equal, assert_true
 
-from src.app.components.ezid_anvl import *
-from src.app.components.identifier_objects import Minid 
+from app.components.ezid_anvl import *
+from app.components.identifier_objects import Minid 
 
 minid_examples = ['ark:/57799/b90t23', 'ark:/57799/b90w82']
 
