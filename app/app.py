@@ -387,7 +387,12 @@ def GetDoi(Shoulder, Id):
     content_type = request.accept_mimetypes.best_match(['text/html', 'application/json', 'application/ld+json'])
     GUID = Shoulder +'/'+ Id
     doi = Doi(guid=GUID)
-    return doi.fetch(content_type)
+
+    if request.args.get('where')=='mds':
+        return doi.fetch_mds(content_type)
+
+    else:
+        return doi.fetch(content_type)
 
 
 
@@ -429,7 +434,7 @@ def DeleteDataguid(uuid, user):
 def GetDataguid(uuid): 
     content_type = request.accept_mimetypes.best_match(['text/html', 'application/json', 'application/ld+json'])
     dataguid = Dataguid(did=uuid)
-    return dataguid.fetch(content_type)
+    return dataguid.fetch(content_type, request.args.get('format', 'schema.org'))
   
 
 ##############################

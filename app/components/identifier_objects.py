@@ -33,8 +33,9 @@ EZID_USER = os.environ.get('EZID_USER', 'cdl_dcppc')
 EZID_PASSWORD = os.environ.get('EZID_PASSWORD', 'ezid2018')
 
 DATACITE_USER = os.environ.get('DATACITE_USER', 'DATACITE.DCPPC')
-DATACITE_PASSWORD = os.environ.get('DATACITE_PASSWORD', 'Player&Chemo+segment')
+DATACITE_PASSWORD = os.environ.get('DATACITE_PASSWORD', 'Xnbd6MzLumfu')
 DATACITE_URL = os.environ.get('DATACITE_URL', 'https://mds.datacite.org')
+DOI_PREFIX = '10.25489'
 
 
 # file extension to mimetype conversions
@@ -445,24 +446,28 @@ class Ark(CoreMetadata):
 
 
 class Doi(CoreMetadata): 
-    required_keys = set(['@id', '@type', 'identifier', 'url', 'name', 'author','datePublished'])
+    required_keys = set(['name', 'author','datePublished'])
     optional_keys = set(['includedInDataCatalog', 'dateCreated', 'additionalType', 'description', 
                         'keywords', 'license', 'version', 'citation', 'isBasedOn',
                         'predecessorOf', 'successorOf', 'hasPart', 'isPartOf', 'funder',
                         'contentSize', 'fileFormat', 'contentUrl'])
     endpoint = DATACITE_URL 
-    auth = (DATACITE_USER, DATACITE_PASSWORD)
+    auth = requests.auth.HTTPBasicAuth(DATACITE_USER, DATACITE_PASSWORD)
 
     def post_api(self):
         ''' Submit XML payload to Datacite
         '''
-        basic_auth = requests.auth.HTTPBasicAuth(self.auth)
         response = {}
+        doi = self.data.get('@id').replace('doi:/','')
+
 
         # register metadata
-        create_metadata = requests.post(
-                url = DATACITE_URL + "/metadata/" ,
-                auth = basic_auth,
+        # - MUST HAPPEN FIRST
+        xml_payload = convertDoiToXml(self.data)
+
+        create_metadata = requests.put(
+                url = DATACITE_URL + "/metadata/" + doi,
+                auth = self.auth,
                 data = xml_payload,
                 headers = {'Content-Type':'application/xml;charset=UTF-8'},
                 )
@@ -471,35 +476,35 @@ class Doi(CoreMetadata):
             'metadataRegistration': create_metadata.content.decode('utf-8')
             })
 
-        assert create_metadata.status_code == 201
 
         # reserve doi
         reserve_doi = requests.put(
-                url = DATACITE_URL + '/doi/' +doi,
-                auth = basic_auth,
-                data = "doi="+self.data.get('@id')+"\nurl="+self.data.get('url'),
+                url = DATACITE_URL + '/doi/' + doi,
+                auth = self.auth,
+                data = "doi="+doi+"\nurl="+self.data.get('url'),
                 )
 
-        assert create_metadata.status_code == 201
+        #assert create_metadata.status_code == 201
 
         response.update({
             'doiReservation': reserve_doi.content.decode('utf-8')
             })
 
-        xml_payload = convertDoiToXml(self.data)
+
+        #assert create_metadata.status_code == 201
 
         # register media
         contentUrl = self.data.get('contentUrl')
         fileFormat = self.data.get('fileFormat')
         if contentUrl is not None and fileFormat is not None:
-            if isintance(contentUrl, list):
+            if isinstance(contentUrl, list):
                 media = '\n'.join([fileFormat+'='+media_elem for media_elem in contentUrl])
                 media_responses = []
                 for media_elem in contentUrl:
                     media = fileFormat+'='+media_elem
                     media_request = requests.post(
                             url = DATACITE_URL + '/media/' + doi,
-                            auth = basic_auth,
+                            auth = self.auth,
                             data = media,
                             headers = {'Content-Type': 'text/plain'}
                             )
@@ -512,7 +517,7 @@ class Doi(CoreMetadata):
                 media = fileFormat+'='+contentUrl
                 single_media_request = requests.post(
                         url = DATACITE_URL + '/media/' + doi,
-                        auth = basic_auth,
+                        auth = self.auth,
                         data = media,
                         headers = {'Content-Type': 'text/plain'}
                         )
@@ -539,7 +544,7 @@ class Doi(CoreMetadata):
             else:
                 return Response(status=404,
                         response = json.dumps({
-                            '@id': GUID, 
+                            '@id': self.guid, 
                             'code': 404,
                             'url':'https://data.datacite.org/application/vnd.schemaorg.ld+json/'+ self.guid,
                             'error': 'Doi Was not Found'}),
@@ -568,6 +573,61 @@ class Doi(CoreMetadata):
                     response = json.dumps(payload),
                     mimetype = 'application/ld+json'
                     )
+
+
+    def fetch_mds(self, content_type):
+        mds_get = requests.get(
+                url = DATACITE_URL+'/metadata/'+ self.guid,
+                auth = self.auth
+                )
+
+        media_get = requests.get(
+                url = DATACITE_URL+'/media/'+ self.guid,
+                auth = self.auth
+                )
+
+        doi_get = requests.get(
+                url = DATACITE_URL+'/doi/'+ self.guid,
+                auth = self.auth
+                )
+
+        if mds_get.status_code == 404:
+            if content_type == 'text/html':
+                template = jinja_env.get_template('DoiNotFound.html')
+                return Response(status=404,
+                        response = template.render(doi= 'http://doi.org/'+self.guid),
+                        mimetype='text/html')
+            else:
+                return Response(status=404,
+                        response = json.dumps({
+                            '@id': self.guid, 
+                            'code': 404,
+                            'url':'https://data.datacite.org/application/vnd.schemaorg.ld+json/'+ self.guid,
+                            'error': 'Doi Was not Found'}),
+                        mimetype='application/ld+json')
+
+        else:
+            xml = mds_get.content.decode('utf-8').replace('<?xml version="1.0" encoding="UTF-8"?>', '').replace('\n','')
+            doi_metadata = DoiXML(xml)
+            json_ld = doi_metadata.parse()
+
+            # add url
+            json_ld['url'] = doi_get.content.decode('utf-8')
+
+            # add media query
+            json_ld['fileFormat'] =list(set(el.split('=')[0] for el in  media_get.content.decode('utf-8').split('\n')))
+            json_ld['contentUrl'] = list(set(el.split('=')[1] for el in  media_get.content.decode('utf-8').split('\n')))
+
+
+            return Response( 
+                    status= 200,
+                    response = json.dumps(json_ld),
+                    mimetype='application/ld+json'
+                    )
+
+        
+
+
 
 
     def fetch_works(self):
@@ -708,7 +768,7 @@ class Dataguid(object):
             self.did = str(uuid.uuid5(self.baseId, schema_json.get('name')))  
         
 
-    def fetch(self, content_type):
+    def fetch(self, content_type, format_):
         self.node = DataguidNode.nodes.get_or_none(did=self.did)
 
         if self.node is None:
@@ -736,9 +796,15 @@ class Dataguid(object):
             return template.render(data=self.node.schema_json, checksums=checksums)
 
         else:
-            return Response(status = 200,
-                    response = json.dumps(self.node.schema_json),
-                    mimetype='application/json')
+            if format_ == 'schema.org':
+                return Response(status = 200,
+                        response = json.dumps(self.node.schema_json),
+                        mimetype='application/json')
+            else:
+                return Response(status = 200,
+                        response = json.dumps(self.node.dg_json),
+                        mimetype='application/json')
+
 
     
     def to_dataguid(self):
