@@ -11,3 +11,4 @@ bugsnag
 neomodel
 python-dateutil
 jsonschema
+parameterized
