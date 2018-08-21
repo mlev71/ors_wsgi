@@ -48,7 +48,15 @@
 
 
                {% if data['author'] is defined %}
-                  {% if data['author'] is iterable %} 
+
+                  {% if data['author'] is mapping %}
+                     <tr>
+                        <th class='metadataKey'> Author </th>
+                        <th itemprop="author" class='metadataVal author'> {{data['author']['name']}} </th>
+                     </tr>
+
+
+                  {% elif data['author'] is iterable %} 
                      <tr>
                         <th>Authors</th>
                      {% for author in data['author'] %}
@@ -70,16 +78,7 @@
                         <th class='metadataKey'>Author</th>
                         <th itemprop="author" class='metadataVal author'>{{data['author']}}</th>
                      </tr> 
-                     <tr>
-                        <th class='metadataKey'>Author</th>
-                        <th itemprop="author" class='metadataVal author'>{{data['author']}}</th>
-                     </tr> 
 
-                  {% elif data['author'] is mapping %}
-                     <tr>
-                        <th class='metadataKey'> Author </th>
-                        <th itemprop="author" class='metadataVal author'> {{data['author']['name']}} </th>
-                     </tr>
                   {% endif %}
                {% endif %}
 
