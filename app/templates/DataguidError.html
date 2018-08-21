@@ -1,0 +1,16 @@
+{% extends "base.html" %} 
+
+   {% block dchead %}
+   {% endblock %}
+
+   {% block body %}
+
+   <h2> Error {{ data['status'] }}  {{ data['@id'] }} </h2>
+
+   <p> 
+   {{data['message'] }} 
+   </p>
+
+
+   {% endblock %}
+

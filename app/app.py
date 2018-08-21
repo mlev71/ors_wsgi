@@ -27,7 +27,7 @@ app.config['DEBUG'] = True
 app.config['TESTING'] = True
 app.config['SECRET_KEY'] = 'kYhD3X9@8Z}FeX2'
 
-LOGIN_URL = os.environ.get('LOGIN')
+LOGIN_URL = os.environ.get('LOGIN', 'https://ors.datacite.org/login')
 
 # configure bugsnag
 bugsnag.configure(
@@ -346,13 +346,7 @@ def GetArk(Shoulder, Id):
 
 @app.route('/doi/put', methods = ['PUT'])
 @globus_auth
-def MintDoi(user):
-    if user.email != 'max.adam.levinson@gmail.com':
-        return Response(
-                status = 403,
-                response = "You are not Authorized to Mint DOIs"
-                )
-    
+def MintDoi(user): 
     payload = json.loads(request.data)
 
     try:
@@ -373,11 +367,6 @@ def MintDoi(user):
 @app.route('/doi:/<path:Shoulder>/<path:Id>', methods = ['DELETE'])
 @globus_auth
 def DeleteDoi(Shoulder, Id, user):
-    if user.email != 'max.adam.levinson@gmail.com':
-        return Response(
-                status = 403,
-                response = "You are not Authorized to Mint DOIs"
-                )
     GUID = Shoulder +'/'+ Id
     doi = Doi(guid=GUID)
     
@@ -399,7 +388,53 @@ def GetDoi(Shoulder, Id):
     GUID = Shoulder +'/'+ Id
     doi = Doi(guid=GUID)
     return doi.fetch(content_type)
-   
+
+
+
+############################################
+# Dataguid Interfaces                      #
+############################################
+@app.route('/dataguid/put', methods = ['PUT'])
+@globus_auth
+def MintDataguid(user): 
+    payload = json.loads(request.data)
+
+    try:
+        validate(payload, dataguid_schema_org)
+
+    except ValidationError as err:
+        return Response(
+                status = 400,
+                response = json.dumps({
+                    'status': 400,
+                    'message': 'Bad Payload',
+                    'validationError': str(err)
+                    })
+                )
+
+
+    dataguid = Dataguid(schema_json=payload)
+    dataguid.to_dataguid()
+    return dataguid.post_cache()
+
+
+@app.route('/dataguid:/<path:uuid>', methods = ['DELETE'])
+@globus_auth
+def DeleteDataguid(uuid, user): 
+    dataguid = Dataguid(did=uuid)
+    return dataguid.delete_cache()
+
+
+@app.route('/dataguid:/<path:uuid>', methods = ['GET'])
+def GetDataguid(uuid): 
+    content_type = request.accept_mimetypes.best_match(['text/html', 'application/json', 'application/ld+json'])
+    dataguid = Dataguid(did=uuid)
+    return dataguid.fetch(content_type)
+  
+
+##############################
+#  Multipule Identifiers     #
+##############################
 
 
 from bugsnag.wsgi.middleware import BugsnagMiddleware

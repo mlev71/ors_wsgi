@@ -10,3 +10,4 @@ lxml
 bugsnag
 neomodel
 python-dateutil
+jsonschema

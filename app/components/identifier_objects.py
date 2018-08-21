@@ -4,6 +4,13 @@ import json
 import re
 import os
 import jinja2
+import uuid
+
+
+from neomodel import (config, UniqueIdProperty, StructuredNode, EmailProperty,
+                      StringProperty, JSONProperty, ArrayProperty,
+                      DateTimeProperty, RelationshipTo, RelationshipFrom, install_labels)
+from jsonschema import validate, ValidationError
 
 from flask import Response, render_template
 
@@ -25,9 +32,9 @@ EZID = 'https://ezid.cdlib.org/id/'
 EZID_USER = os.environ.get('EZID_USER', 'cdl_dcppc')
 EZID_PASSWORD = os.environ.get('EZID_PASSWORD', 'ezid2018')
 
-DATACITE_USER = os.environ.get('DATACITE_USER')
-DATACITE_PASSWORD = os.environ.get('DATACITE_PASSWORD')
-DATACITE_URL = os.environ.get('DATACITE_URL')
+DATACITE_USER = os.environ.get('DATACITE_USER', 'DATACITE.DCPPC')
+DATACITE_PASSWORD = os.environ.get('DATACITE_PASSWORD', 'Player&Chemo+segment')
+DATACITE_URL = os.environ.get('DATACITE_URL', 'https://mds.datacite.org')
 
 
 # file extension to mimetype conversions
@@ -684,11 +691,199 @@ class Minid(object):
      
         return json_ld
 
+
+class Dataguid(object):
+    baseId = uuid.uuid5(uuid.NAMESPACE_DNS, 'ors.datacite.org')
+    
+    def __init__(self, schema_json=None, did=None):
+        if schema_json is not None:
+            self.schema_json = schema_json
+
+
+            self.dg_json = {'form': 'object'} 
+ 
+        self.did = did
+        
+        if self.did is None:
+            self.did = str(uuid.uuid5(self.baseId, schema_json.get('name')))  
+        
+
+    def fetch(self, content_type):
+        self.node = DataguidNode.nodes.get_or_none(did=self.did)
+
+        if self.node is None:
+            response_message = {
+                    "@id": self.did,
+                    "status": 404,
+                    "message": "No Identifier found for dataguid {}".format(self.did)
+                }
+
+            if content_type == 'text/html':
+                template = jinja_env.get_template('DataguidError.html')
+                return template.render(data=response_message)
+            else:
+                return Response(status = 404,
+                        response= json.dumps(response_message),
+                        mimetype='text/html'
+                        )
+
+        
+        if content_type == 'text/html':
+
+            checksums = list(filter(lambda x: isinstance(x, dict), self.node.schema_json.get('identifier')))
+
+            template = jinja_env.get_template('Dataguid.html')
+            return template.render(data=self.node.schema_json, checksums=checksums)
+
+        else:
+            return Response(status = 200,
+                    response = json.dumps(self.node.schema_json),
+                    mimetype='application/json')
+
+    
+    def to_dataguid(self):
+        self.checksums = list(filter(lambda x: isinstance(x, dict), self.schema_json.get('identifier')))  
+        self.dg_json['hashes'] = {checksum.get('name'): checksum.get('@value') for checksum in self.checksums} 
+        self.dg_json['did'] = str(uuid.uuid5(self.baseId, self.schema_json.get('name')) )
+        self.dg_json['baseId'] = str(self.baseId) 
+        self.dg_json['urls'] = self.schema_json.get('contentUrl') 
+        self.dg_json['filename'] = re.findall(r'\w*.\w*$', self.dg_json.get('urls')[0])[0]
+        self.dg_json['version'] = self.schema_json.get('version')  
+        self.dg_json['metadata'] = self.schema_json 
+
+        # assign UUID and base UUID to schema.org json-ld
+        self.schema_json['@id'] = str(uuid.uuid5(self.baseId, self.schema_json.get('name')) )
+        self.schema_json['identifier'].append(str(self.baseId))
+    
+        if self.schema_json.get('dateCreated') is None:
+            self.schema_json['dateCreated'] = str(datetime.datetime.now())
+    
+        if self.schema_json.get('url') is None:
+            self.schema_json['url'] = 'https://localhost/dataguid:/{}'.format(self.schema_json.get('@id'))
+    
+        if self.schema_json.get('version') is None:
+            self.schema_json['version'] = 'v1.0'
+
+    
+    def post_cache(self):
+        self.node = DataguidNode.create_or_update({
+                'did':self.did,
+                'baseId':self.baseId,
+                'dg_json':self.dg_json,
+                'schema_json': self.schema_json
+                }
+            )[0]
+                
+         
+        for url in self.schema_json.get('contentUrl'):
+            temp_dl = Download.create_or_update(
+                {
+                    'url': url, 
+                    'contentSize': self.schema_json.get('contentSize'),
+                    'fileFormat': self.schema_json.get('fileFormat')
+                }
+            )[0]
+            self.node.download.connect(temp_dl)
+            
+        for cs in self.checksums:
+            temp_cs = Checksum.get_or_create(
+                {
+                    'Method': cs.get('name'),
+                    'Value': cs.get('@value')
+                }
+            )[0]
+            self.node.checksum.connect(temp_cs)
+
+        return Response(status=201,
+                response = json.dumps({
+                    '@id': self.did,
+                    'status': 201,
+                    'message': 'Successfully Posted Dataguid',
+                    'dataguid': self.node.dg_json,
+                    'schema.org': self.node.schema_json
+                    }),
+                mimetype='application/json'
+                )
+
+
+    def delete_cache(self):
+        self.node = DataguidNode.nodes.get_or_none(did=self.did)
+
+        if self.node is None:
+            response_message = {
+                        "@id": self.did,
+                        "status": 404,
+                        "message": "No Identifier found for dataguid {}".format(self.did)
+                        }
+            return Response(status = 404,
+                        response= json.dumps(response_message),
+                        mimetype='text/html'
+                        )
+
+        else:
+            dg_json = self.node.dg_json
+            schema_json = self.node.schema_json
+
+            for dl in self.node.download:
+                dl.delete()
+                 
+            for cs in self.node.checksum:
+                cs.delete()
+                    
+            self.node.delete()
+
+            return Response(status=200,
+                    response = json.dumps({
+                        '@id': self.did,
+                        'status': 200,
+                        'message': 'Successfully Deleted Dataguid {}'.format(self.did),
+                        'dataguid': dg_json,
+                        'schema.org': schema_json
+                        }),
+                    mimetype='application/json'
+                    )
+                
+
 ############################
 #  Neomodel representation #
 ############################
 
+class DataguidNode(StructuredNode): 
+    __label__ = 'Dataguid'
+    dg_json = JSONProperty()
+    schema_json = JSONProperty()
+    
+    did = StringProperty(required=True, unique_index=True)
+    baseId = StringProperty(required=True)
+     
+    #relationships
+    checksum = RelationshipTo('Checksum', 'hasChecksum')
+    download = RelationshipTo('Download', 'hasDownload')
 
+
+class Checksum(StructuredNode):
+    Value = StringProperty(required = True)
+    Method = StringProperty(required = True)
+
+
+class Download(StructuredNode):
+    fileFormat = StringProperty()
+    url = StringProperty(required = True)
+    contentSize = StringProperty()
+     
+    CLOUDS = {'Azure': 'Azure', 'Google Public Cloud': 'GPC', 'Amazon Web Services': 'AWS'}
+    cloud = StringProperty(choices=CLOUDS)
+        
+    checksum = RelationshipTo('Checksum', 'hasChecksum')
+
+
+try:
+    install_labels(Checksum)
+    install_labels(Download)
+    install_labels(DataguidNode)
+
+except:
+    pass
 
    
 #####################
@@ -825,3 +1020,117 @@ class UnknownProfile400(BaseException):
         template = jinja_env.get_template('IdentifierError.html')
         return template.render(data = self.response_message)
 
+
+#####################
+# Schema Validation #
+#####################
+
+dataguid_schema_org = {
+    '$schema': 'http://json-schema.org/schema#',
+    'title': 'Dataguid formatted in Schema.org',
+    'additionalProperties': False,
+    'description': 'Schema.org Format of a Dataguid',
+    'properties': {
+        '@context': {'enum': ['https://schema.org']},
+        '@type': {'enum': ['Dataset', 'DataCatalog', 'CreativeWork']},
+        '@id': {
+                'pattern': '^.*[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$',
+                'type': 'string'
+            },
+        'identifier': {
+            'type': 'array',
+            'uniqueItems': True,
+            'items': {
+                'anyOf': [
+                    {'type': 'object', 'properties': {
+                        "@value": {'type': 'string'},
+                        "@type": {'enum': ['PropertyValue']},
+                        "name": {'enum': ['md5', 'sha', 'sha256', 'sha512', 'crc', 'etag']}
+                    }
+                },
+                {'type': 'string', 'pattern': '^.*[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$'}
+            ]},
+            'minItems': 1,
+        },
+        'url': {'type': 'string', 'format': 'uri'},
+        'name': {'type':'string'},
+        'contentUrl': {'type': 'array', 'items': {'type':'string', 'format': 'uri'}},
+        'version': {'type':'string'},
+        'contentSize': {'type': 'string'},
+        'author': {'oneOf': [
+            {'type': 'object', 'properties':{
+                '@type': {'type': 'string'},
+                'name': {'type': 'string'}
+            }},
+            {'type': 'string'},
+            {'type': 'array', 'items': {'anyOf': [
+                {'type': 'object',
+                 'properties':{
+                    '@type': {'type': 'string'},
+                    'name': {'type': 'string'}}
+                },
+                {'type': 'string'}
+            ]}}
+        ]},
+    },
+    'required': ['contentUrl', 'identifier', 'contentSize', 'name']
+    }
+        
+
+dataguid_schema = {
+    '$schema': 'http://json-schema.org/schema#',
+    'title': 'Dataguid',
+    'additionalProperties': False,
+    'description': 'Create a new index from hash & size',
+    'properties': {
+        'acl': {'items': {'type': 'string'}, 'type': 'array'},
+        'baseid': {
+            'pattern': '^.*[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$',
+            'type': 'string'
+        },
+        'did': {
+            'pattern': '^.*[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$',
+            'type': 'string'
+        },
+        'file_name': {
+            'description': 'optional file name of the object',
+            'type': 'string'
+        },
+        'form': {
+            'enum': ['object','container', 'multipart']
+        },
+        'hashes': {
+            'anyOf': [{'required': ['md5']},
+                      {'required': ['sha1']},
+                      {'required': ['sha256']},
+                      {'required': ['sha512']},
+                     {'required': ['crc']},
+                     {'required': ['etag']}],
+           'properties': {'crc': {'pattern': '^[0-9a-f]{8}$',
+                                  'type': 'string'},
+                          'etag': {'pattern': '^[0-9a-f]{32}(-\\d+)?$',
+                                   'type': 'string'},
+                          'md5': {'pattern': '^[0-9a-f]{32}$',
+                                  'type': 'string'},
+                          'sha1': {'pattern': '^[0-9a-f]{40}$',
+                                   'type': 'string'},
+                          'sha256': {'pattern': '^[0-9a-f]{64}$',
+                                     'type': 'string'},
+                          'sha512': {'pattern': '^[0-9a-f]{128}$',
+                                     'type': 'string'}},
+                   'type': 'object'},
+        'metadata': {'description': 'optional metadata of the object',
+                     'type': 'object'},
+        'size': {'description': 'Size of the data being indexed in bytes',
+                 'minimum': 0,
+                 'type': 'integer'},
+        'urls': {'items': {'type': 'string'},
+                 'type': 'array'},
+        'urls_metadata': {'description': 'optional urls metadata of the object',
+                          'type': 'object'},
+        'version': {'description': 'optional version string of the object',
+                    'type': 'string'}
+    },
+    'required': ['size', 'hashes', 'urls', 'form'],
+    'type': 'object'
+    }

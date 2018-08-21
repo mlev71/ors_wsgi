@@ -1,0 +1,157 @@
+{% extends "base.html" %} 
+
+   {% block dchead %}
+      <script type="application/ld+json">
+         {{data|tojson|safe}}
+      </script>
+
+
+   <!--Dublin Core Embedding for Ark-->
+        <title> Landing Page for {{ data['@id'] }} </title>
+
+        <!-- What DC metadata is in the page-->
+        <link rel="schema.DC" href="http://purl.org/dc/elements/1.1/" >
+        <link rel="schema.DCTERMS" href="http://purl.org/dc/terms/" >
+        <link rel="schema.DCTYPE" href="http://purl.org/dc/dcmitype" >
+
+        <!-- Values-->
+        <meta name="DC.type" content = "Collection" >
+        <meta name="DC.title" content = "Landing Page for {{ data['name']}}" >
+
+        <!-- identifier -->            
+        <meta name="DC.identifier" content ="{{ data['@id']}}" scheme="DCTERMS.URI" > 
+        <link rel="DC.identifier" content ="{{ data['@id']}}" scheme="DCTERMS.URI" > 
+
+        <!-- locations --> 
+        <meta name="DCTERMS.subject" href= "{{ data['name'] }}" > 
+        <link rel="DCTERMS.subject" href="{{ data['name'] }}" >
+   {% endblock %}
+
+   {% block body %}
+
+   <!-- Schema.org formatted body --> 
+   <body itemscope itemtype="http://schema.org/{{data['@type']}}">
+
+      <div class="container" id="identifier_container">
+         <h2> Identifier Metadata </h2>
+
+            <table>
+               <tr>
+                  <th class='metadataKey'>Name</th>
+                  <th itemprop="name" class='metadataVal name'>{{data['name']}}</th>
+               </tr>
+               
+               <tr> 
+                  <th class='metadataKey'>Identifier</th>
+                  <th itemprop="identifier" class='metadataVal identifier'>{{data['@id']}}</th>
+               </tr> 
+
+
+               {% if data['author'] is defined %}
+                  {% if data['author'] is iterable %} 
+                     <tr>
+                        <th>Authors</th>
+                     {% for author in data['author'] %}
+                        <tr>
+                           {% if author is mapping %}
+                           <th>
+                              <th itemprop="author" class="metadataVal author"> {{ author['name'] }} </th>
+                           </th>
+                           {% elif author is string %}
+                           <th>
+                              <th itemprop="author" class="metadataVal author"> {{ author }} </th>
+                           </th>
+                           {% endif %}
+                        </tr>
+                     {% endfor %}
+
+                  {% elif data['author'] is string %}
+                     <tr>
+                        <th class='metadataKey'>Author</th>
+                        <th itemprop="author" class='metadataVal author'>{{data['author']}}</th>
+                     </tr> 
+                     <tr>
+                        <th class='metadataKey'>Author</th>
+                        <th itemprop="author" class='metadataVal author'>{{data['author']}}</th>
+                     </tr> 
+
+                  {% elif data['author'] is mapping %}
+                     <tr>
+                        <th class='metadataKey'> Author </th>
+                        <th itemprop="author" class='metadataVal author'> {{data['author']['name']}} </th>
+                     </tr>
+                  {% endif %}
+               {% endif %}
+
+
+               <tr>
+                  <th class='metadataKey'>Date Created</th>
+                  <th itemprop="dateCreated" class='metadataVal dateCreated'>{{data['dateCreated']}}</th>
+               </tr>
+        
+               {% if data['includedInDataCatalog'] is defined %} 
+               <tr>
+                  <th class='metadataKey'>Included In Data Catalog</th>
+                  <th itemprop="includedInDataCatalog" class='metadataVal includedInDataCatalog'> {{data['includedInDataCatalog']}} </th>
+               </tr> 
+               {% endif %}
+
+               {% if data['contentUrl'] is iterable %}
+                  <tr>
+                     <th class='metadataKey'>Content Url</th>
+
+                     <th>
+                        <table>
+                           {% for url in data['contentUrl'] %}
+                           <tr>
+                              <th class='metadataVal contentUrl'> 
+                                 <a href="{{url}}">{{url}}</a> 
+                              </th>
+                           </tr>
+                           {% endfor %}
+                        </table>
+                     </th>
+                  </tr>
+
+               {% elif data['contentUrl'] is string %}
+               <tr>
+                  <th class='metadataKey'>Content Url</th>
+                  <th class='metadataVal contentUrl'> <a href="{{data['contentUrl']}}">{{data['contentUrl']}}</a> </th>
+               </tr>
+
+               {% endif %}
+
+               <tr>
+                  <th class='metadataKey'>Checksum </th>
+                  <th>
+                     <table>
+                     {% for cs in checksums %}
+                     <tr> 
+                        <th class='metadataVal checksumMethod'> {{cs['name']}} </th>
+                        <th class='metadataVal checksum'> {{cs['@value']}} </th>
+                     </tr>
+                     {% endfor %}
+                     </table>
+                  </th>
+
+                  </th>
+               </tr>
+
+            <tr>
+               <th class='metadataKey'> Url </th>
+               <th class='metadataVal url'> {{data['url']}} </th>
+            </tr>
+
+            <tr>
+               <th class='metadataKey'> Version </th>
+               <th class='metadataVal version'> {{data['version']}}</th>
+            </tr>
+
+            <tr>
+               <th class='metadataKey'> Content Size </th>
+               <th class='metadataVal contentSize'> {{data['contentSize'] }} </th>
+            </tr>
+
+            </table>
+
+   {% endblock %}
