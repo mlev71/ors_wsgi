@@ -17,6 +17,13 @@ from app.components.globus_auth import *
 from app.components.identifier_objects import *
 from app.components.neo_helpers import *
 
+
+import jinja2
+
+jinja_env = jinja2.Environment(
+        loader=jinja2.PackageLoader('app','templates')
+    )
+
 app = Flask('ors', 
         template_folder='app/templates',
         static_folder= 'app/static'
@@ -50,16 +57,14 @@ bugsnag.notify(Exception('Test Error on Starting Application'))
 
 # @app.after_request
 
-with open('dois.txt', 'r') as doi_list:
-    GTEX_DOIS = [ re.sub('doi.org', 'ors.datacite.org') doi_list.read().splitlines()
+with open('app/dois.txt', 'r') as doi_list:
+    GTEX_DOIS = [ re.sub('doi.org/', 'ors.datacite.org/doi:/', doi) for doi in  doi_list.read().splitlines()]
 
 @app.route('/sitemap.xml', methods=['GET'])
 def sitemap():
     '''Generate sitemap.xml for all identifiers, list of urls and date modified'''
-    sitemap_xml = render_template('sitemap_template.html', pages=GTEX_DOIS)
-    response = make_response(sitemap_xml)
-    response.headers["Content-Type"] = "application/xml"
-    return response
+    template = jinja_env.get_template('sitemap_template.xml')
+    return template.render( pages=GTEX_DOIS)
 
 
 
