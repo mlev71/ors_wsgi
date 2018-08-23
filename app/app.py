@@ -50,6 +50,19 @@ bugsnag.notify(Exception('Test Error on Starting Application'))
 
 # @app.after_request
 
+with open('dois.txt', 'r') as doi_list:
+    GTEX_DOIS = [ re.sub('doi.org', 'ors.datacite.org') doi_list.read().splitlines()
+
+@app.route('/sitemap.xml', methods=['GET'])
+def sitemap():
+    '''Generate sitemap.xml for all identifiers, list of urls and date modified'''
+    sitemap_xml = render_template('sitemap_template.html', pages=GTEX_DOIS)
+    response = make_response(sitemap_xml)
+    response.headers["Content-Type"] = "application/xml"
+    return response
+
+
+
 @app.route('/', methods = ['GET'])
 def home():
     ''' Render Homepage with Content Information
