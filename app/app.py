@@ -57,16 +57,6 @@ bugsnag.notify(Exception('Test Error on Starting Application'))
 
 # @app.after_request
 
-with open('app/dois.txt', 'r') as doi_list:
-    GTEX_DOIS = [ re.sub('doi.org/', 'ors.datacite.org/doi:/', doi) for doi in  doi_list.read().splitlines()]
-
-@app.route('/sitemap.xml', methods=['GET'])
-def sitemap():
-    '''Generate sitemap.xml for all identifiers, list of urls and date modified'''
-    template = jinja_env.get_template('sitemap_template.xml')
-    return template.render( pages=GTEX_DOIS)
-
-
 
 @app.route('/', methods = ['GET'])
 def home():
@@ -285,6 +275,27 @@ def register():
     
     if request.method == 'GET':
         return "Contact max.adam.levinson@gmail.com to be placed on whitelist"
+
+
+##########################
+# Search Engine indexing #
+##########################
+
+
+with open('app/dois.txt', 'r') as doi_list:
+    GTEX_DOIS = [ re.sub('doi.org/', 'ors.datacite.org/doi:/', doi) for doi in  doi_list.read().splitlines()]
+
+@app.route('/sitemap.xml', methods=['GET'])
+def sitemap():
+    '''Generate sitemap.xml for all identifiers, list of urls and date modified'''
+    template = jinja_env.get_template('sitemap_template.xml')
+    return template.render( pages=GTEX_DOIS)
+
+@app.route('/robots.txt', methods=['GET'])
+def robots():
+    return app.send_static_file('robots.txt')
+
+
 
 
 ##########################################################

@@ -1,0 +1,2 @@
+User-agent: *
+Sitemap: https://ors.datacite.org/sitemap.xml
