@@ -3,27 +3,18 @@ import hashlib
 import string
 import os
 
-
 from functools import wraps
 import globus_sdk
 from flask import redirect, request, session, url_for, Response
 from json import dumps
 
 
-from neomodel import (config, StructuredNode, EmailProperty, StringProperty, JSONProperty, ArrayProperty,
-                      DateTimeProperty, RelationshipTo, RelationshipFrom, install_labels, cardinality)
-import datetime, base64, json
-
-NEO_PASSWORD = os.environ.get('NEO_PASSWORD', 'localtest')
-NEO_URL = os.environ.get('NEO_URL', 'localhost')
-
-config.DATABASE_URL = 'bolt://neo4j:'+ NEO_PASSWORD +'@'+ NEO_URL +':7687'
-
+from app.components.models.auth import *
 
 # globus auth global constants
-CLIENT_ID = 'd0b62e2d-a6df-44cc-adf7-b4a1ead2178a'
-CLIENT_IDENTITY_USERNAME = 'd0b62e2d-a6df-44cc-adf7-b4a1ead2178a@clients.auth.globus.org'
-CLIENT_SECRET = 'gdbcvA5K+3FmlmG0Ss8YMnPiwaABVieYqJ7neBv1raI='
+CLIENT_ID = os.environ.get('GLOBUS_CLIENT') 
+CLIENT_IDENTITY_USERNAME = os.environ.get('GLOBUS_USERNAME') 
+CLIENT_SECRET = os.environ.get('GLOBUS_SECRET') 
 
 ADMIN_USERNAME = os.environ.get('ADMIN_USERNAME', 'localtest')
 ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'localtest')
@@ -59,7 +50,7 @@ def globus_auth(f):
             login = GlobusLoginNode.nodes.get_or_none(accessToken=access_token)
     
             if login is not None:
-                user = login.authenticates
+                user = login.authenticates.all()[0]
                 if user is not None:
                     return f(user=user, *args, **kwargs)
     
@@ -83,57 +74,6 @@ def globus_auth(f):
                             )
     
     return auth_wrap
-class TeamNode(StructuredNode):
-    element = StringProperty(required=True)
-    kc = StringProperty(required=True)
-
-
-##################################
-# NEOMODEL AUTHENTICATION MODELS #
-##################################
-
-class UserNode(StructuredNode):
-    email = EmailProperty(unique_index=True, required=True)
-    firstName = StringProperty(required=True)
-    lastName = StringProperty(required=True) 
-
-    team = RelationshipTo('TeamNode', 'memberOf', cardinality=cardinality.ZeroOrOne)
-    token = RelationshipTo('GlobusLoginNode', 'auth', cardinality=cardinality.ZeroOrOne)
-
-
-class GlobusLoginNode(StructuredNode):
-    ''' Obtained by Logging in
-    '''
-    refreshToken = StringProperty(required=True, unique_index = True)
-    accessToken = StringProperty(required=True)
-
-    inspected = RelationshipTo('InspectedTokenNode', 'details', cardinality=cardinality.ZeroOrOne)
-    authenticates = RelationshipTo('UserNode', 'authFor', cardinality=cardinality.ZeroOrOne)
-    identities = RelationshipTo('GlobusIdentityNode', 'identity')
-    
-
-class InspectedTokenNode(StructuredNode): 
-    email = EmailProperty(required=True, unique_index = True)
-    name = StringProperty(required=True)
-    username = StringProperty(required=True)
-    
-    exp = DateTimeProperty(required=True)
-    iat = DateTimeProperty(required=True)
- 
-    identitiesSet = ArrayProperty() 
-    login = RelationshipTo('GlobusLoginNode', 'detailsFor')
-
-
-
-class GlobusIdentityNode(StructuredNode):
-    email = EmailProperty()
-    globusId = StringProperty()
-    name = StringProperty()
-    organization = StringProperty()
-    username = StringProperty()    
-    login = RelationshipTo('GlobusLoginNode', 'identityFrom')    
-
-
 
 
 class GlobusToken():
@@ -206,20 +146,3 @@ class GlobusToken():
             if matched_user is not None and self.login_node.authenticates is None:
                 self.login_node.authenticates.connect(matched_user)
 
-# Create Test Credentials 
-try:
-    install_labels(TeamNode)
-    install_labels(UserNode)
-    install_labels(GlobusLoginNode)
-    install_labels(InspectedTokenNode)
-    install_labels(GlobusIdentityNode)
-
-    test_user = UserNode(email='mal8ch@virginia.edu', firstName='TEST', lastName='TEST')
-    test_globus_login = GlobusLoginNode(refreshToken='TEST',accessToken='TEST')
-
-    test_user.save()
-    test_globus_login.save()
-
-    test_globus_login.authenticates.connect(test_user)
-except:
-    pass

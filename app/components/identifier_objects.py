@@ -6,10 +6,6 @@ import os
 import jinja2
 import uuid
 
-
-from neomodel import (config, UniqueIdProperty, StructuredNode, EmailProperty,
-                      StringProperty, JSONProperty, ArrayProperty,
-                      DateTimeProperty, RelationshipTo, RelationshipFrom, install_labels)
 from jsonschema import validate, ValidationError
 
 from flask import Response, render_template
@@ -22,19 +18,22 @@ jinja_env = jinja2.Environment(
         loader=jinja2.PackageLoader('app','templates')
     )
 
-from app.components.cel import delete_task
+from app.components.cel import delete_task, put_dataguid, delete_dataguid
 from app.components.ezid_anvl import *
 from app.components.mds_xml import *
 
+from app.components.models import *
+
+ORS_URL = os.environ.get('PROXY_URL', 'https://localhost')
 
 
 EZID = 'https://ezid.cdlib.org/id/'
-EZID_USER = os.environ.get('EZID_USER', 'cdl_dcppc')
-EZID_PASSWORD = os.environ.get('EZID_PASSWORD', 'ezid2018')
+EZID_USER = os.environ.get('EZID_USER')
+EZID_PASSWORD = os.environ.get('EZID_PASSWORD')
 
-DATACITE_USER = os.environ.get('DATACITE_USER', 'DATACITE.DCPPC')
-DATACITE_PASSWORD = os.environ.get('DATACITE_PASSWORD', 'Xnbd6MzLumfu')
-DATACITE_URL = os.environ.get('DATACITE_URL', 'https://mds.datacite.org')
+DATACITE_USER = os.environ.get('DATACITE_USER')
+DATACITE_PASSWORD = os.environ.get('DATACITE_PASSWORD')
+DATACITE_URL = os.environ.get('DATACITE_URL')
 DOI_PREFIX = '10.25489'
 
 
@@ -443,8 +442,6 @@ class Ark(CoreMetadata):
                         )
 
 
-
-
 class Doi(CoreMetadata): 
     required_keys = set(['name', 'author','datePublished'])
     optional_keys = set(['includedInDataCatalog', 'dateCreated', 'additionalType', 'description', 
@@ -618,12 +615,17 @@ class Doi(CoreMetadata):
             json_ld['fileFormat'] =list(set(el.split('=')[0] for el in  media_get.content.decode('utf-8').split('\n')))
             json_ld['contentUrl'] = list(set(el.split('=')[1] for el in  media_get.content.decode('utf-8').split('\n')))
 
-
-            return Response( 
-                    status= 200,
-                    response = json.dumps(json_ld),
-                    mimetype='application/ld+json'
-                    )
+            if content_type == 'text/html':
+                template = jinja_env.get_template('Doi.html')
+                return Response(status=200, 
+                        response = template.render(data = json_ld),
+                        mimetype = 'text/html')
+            else:
+                return Response( 
+                        status= 200,
+                        response = json.dumps(json_ld),
+                        mimetype='application/ld+json'
+                        )
 
         
 
@@ -753,25 +755,84 @@ class Minid(object):
 
 
 class Dataguid(object):
-    baseId = uuid.uuid5(uuid.NAMESPACE_DNS, 'ors.datacite.org')
-    
-    def __init__(self, schema_json=None, did=None):
+    auth = requests.auth.HTTPBasicAuth(
+            os.environ.get('INDEXD_USER'), 
+            os.environ.get('INDEXD_PASSWORD')
+            )
+    indexd_url = os.environ.get('INDEXD_URL')
+
+
+    def __init__(self, schema_json=None, dg_json=None, did=None):
         if schema_json is not None:
             self.schema_json = schema_json
+            self.dg_json = None 
 
-
-            self.dg_json = {'form': 'object'} 
- 
-        self.did = did
+        if dg_json is not None:
+            self.dg_json = dg_json
         
-        if self.did is None:
-            self.did = str(uuid.uuid5(self.baseId, schema_json.get('name')))  
-        
+        self.did = did 
 
-    def fetch(self, content_type, format_):
-        self.node = DataguidNode.nodes.get_or_none(did=self.did)
 
-        if self.node is None:
+    def to_dataguid(self):
+        ''' Convert schema.org json-ld to Dataguid metadata format 
+        '''
+        self.checksums = list(filter(lambda x: isinstance(x, dict), self.schema_json.get('identifier')))  
+
+        self.dg_json = {
+                'form': 'object',
+                'hashes': {checksum.get('name'): checksum.get('value') for checksum in self.checksums},
+                'urls': self.schema_json.get('contentUrl'),
+                'file_name': re.findall(r'\w*.\w*$', self.schema_json.get('contentUrl')[0])[0],
+                'size': int(self.schema_json.get('contentSize')),
+
+                # Metadata breaks posting to 
+                #'metadata': self.schema_json 
+                }
+    
+        #if self.schema_json.get('dateCreated') is None:
+        #    self.schema_json['dateCreated'] = str(datetime.datetime.now())
+    
+        #if self.schema_json.get('url') is None:
+        #    self.schema_json['url'] = ORS_URL+'dataguid:/{}'.format(self.schema_json.get('@id'))    
+    
+        #if self.schema_json.get('version') is not None:
+        #    self.dg_json['version'] = self.schema_json.get('version')  
+
+
+    def to_schema(self):
+        ''' Convert Dataguid metadata format to schema.org json-ld 
+        '''
+    
+        self.schema_json = {
+                '@context': 'https://schema.org',
+                '@id': self.dg_json.get('did'),
+                '@type': 'Dataset',
+                'identifier': [
+                    self.dg_json.get('did'),
+                    self.dg_json.get('baseid')
+                    ],
+                'name': self.dg_json.get('file_name'),
+                'url': ORS_URL+'dataguid:/{}'.format(self.dg_json.get('did')),
+                'contentSize': self.dg_json.get('size'),
+                'dateCreated': self.dg_json.get('created_date'),
+                'contentUrl': self.dg_json.get('urls'),
+                'version': self.dg_json.get('version')
+                }
+
+        [self.schema_json.get('identifier').append({'@type': 'PropertyValue', 'name': key, 'value': value}) \
+                for key,value in self.dg_json.get('hashes').items()]
+
+
+    def fetch_indexd(self, content_type, format_):
+        ''' Return results from Indexd 
+            TODO Unittest
+        '''        
+        get_indexd = requests.get(
+                url = self.indexd_url+'index/'+self.did,
+                headers={'content-type': 'application/json'}
+                )
+
+        if get_indexd.status_code == 404:
             response_message = {
                     "@id": self.did,
                     "status": 404,
@@ -788,170 +849,201 @@ class Dataguid(object):
                         )
 
         
-        if content_type == 'text/html':
-
-            checksums = list(filter(lambda x: isinstance(x, dict), self.node.schema_json.get('identifier')))
-
-            template = jinja_env.get_template('Dataguid.html')
-            return template.render(data=self.node.schema_json, checksums=checksums)
-
         else:
-            if format_ == 'schema.org':
-                return Response(status = 200,
-                        response = json.dumps(self.node.schema_json),
-                        mimetype='application/json')
+            self.dg_json = json.loads(get_indexd.content.decode('utf-8'))
+ 
+            if content_type == 'text/html':
+                self.to_schema()
+                template = jinja_env.get_template('Dataguid.html')
+                return template.render(
+                        data=self.schema_json, 
+                        checksums=list(filter(lambda x: isinstance(x, dict), self.schema_json.get('identifier')))
+                        )
+    
             else:
-                return Response(status = 200,
-                        response = json.dumps(self.node.dg_json),
-                        mimetype='application/json')
+                if format_ == 'dg':
+                    return Response(
+                            status=200,
+                            response=json.dumps(self.dg_json),
+                            mimetype='application/json'
+                            )
 
+                else:
+                    self.to_schema()
+                    return Response(
+                            status=200,
+                            response=json.dumps(self.schema_json),
+                            mimetype='application/ld+json'
+                            )
 
-    
-    def to_dataguid(self):
-        self.checksums = list(filter(lambda x: isinstance(x, dict), self.schema_json.get('identifier')))  
-        self.dg_json['hashes'] = {checksum.get('name'): checksum.get('@value') for checksum in self.checksums} 
-        self.dg_json['did'] = str(uuid.uuid5(self.baseId, self.schema_json.get('name')) )
-        self.dg_json['baseId'] = str(self.baseId) 
-        self.dg_json['urls'] = self.schema_json.get('contentUrl') 
-        self.dg_json['filename'] = re.findall(r'\w*.\w*$', self.dg_json.get('urls')[0])[0]
-        self.dg_json['version'] = self.schema_json.get('version')  
-        self.dg_json['metadata'] = self.schema_json 
+    def post_indexd(self, user):
+        ''' Post Dataguid to Indexd
+            TODO Unittest
+        '''
 
-        # assign UUID and base UUID to schema.org json-ld
-        self.schema_json['@id'] = str(uuid.uuid5(self.baseId, self.schema_json.get('name')) )
-        self.schema_json['identifier'].append(str(self.baseId))
-    
-        if self.schema_json.get('dateCreated') is None:
-            self.schema_json['dateCreated'] = str(datetime.datetime.now())
-    
-        if self.schema_json.get('url') is None:
-            self.schema_json['url'] = 'https://localhost/dataguid:/{}'.format(self.schema_json.get('@id'))
-    
-        if self.schema_json.get('version') is None:
-            self.schema_json['version'] = 'v1.0'
+        post_dg = requests.post(
+                url = self.indexd_url+ 'index/',
+                data = json.dumps(self.dg_json),
+                auth = self.auth,
+                headers = {'content-type': 'application/json'}
+                )
 
-    
-    def post_cache(self):
-        self.node = DataguidNode.create_or_update({
-                'did':self.did,
-                'baseId':self.baseId,
-                'dg_json':self.dg_json,
-                'schema_json': self.schema_json
-                }
-            )[0]
-                
-         
-        for url in self.schema_json.get('contentUrl'):
-            temp_dl = Download.create_or_update(
-                {
-                    'url': url, 
-                    'contentSize': self.schema_json.get('contentSize'),
-                    'fileFormat': self.schema_json.get('fileFormat')
-                }
-            )[0]
-            self.node.download.connect(temp_dl)
-            
-        for cs in self.checksums:
-            temp_cs = Checksum.get_or_create(
-                {
-                    'Method': cs.get('name'),
-                    'Value': cs.get('@value')
-                }
-            )[0]
-            self.node.checksum.connect(temp_cs)
+        if post_dg.status_code == 200:
+            dg = json.loads(post_dg.content.decode('utf-8'))
 
-        return Response(status=201,
-                response = json.dumps({
-                    '@id': self.did,
-                    'status': 201,
-                    'message': 'Successfully Posted Dataguid',
-                    'dataguid': self.node.dg_json,
-                    'schema.org': self.node.schema_json
-                    }),
+            did = re.sub(r'^\w*:', '', dg.get('did'))
+
+            # add task to celery to keep record of celery
+            put_task = put_dataguid.delay(
+                    UserEmail = user.email,
+                    did = did,
+                    baseId = dg.get('baseid'),
+                    rev = dg.get('rev'),
+                    schemaJson = self.schema_json,
+                    dgJson = self.dg_json,
+                    )
+
+            return Response(
+                    status=201,
+                    response=post_dg.content,
+                    mimetype='application/json'
+                    )
+    
+        else:
+            return Response(
+                    status = 400,
+                    response = json.dumps({
+                        'status': 400,
+                        'message': 'Failed to mint Identifier',
+                        'indexd': post_dg.content.decode('utf-8')
+                        })
+
+                    )
+ 
+    def update_indexd(self, user, rev):
+        update_dg = requests.put(
+            url = self.indexd_url+'index/'+self.did+'?rev='+rev,
+            auth = self.auth,
+            data = json.dumps({
+                'acl': self.dg_json.get('acl', []),
+                'file_name': self.dg_json.get('file_name'),
+                'metadata': self.dg_json.get('metadata', {}),
+                'urls': self.dg_json.get('urls'),
+                'urls_metadata': self.dg_json.get('urls_metadata', {}),
+                'version': self.dg_json.get('version'),
+                }),
+            headers = {'content-type':'application/json'}
+        )
+
+        dg = json.loads(update_dg.content.decode('utf-8')) 
+        did = re.sub(r'^\w*:', '', self.did)
+
+        # add to put_task 
+        put_task = put_dataguid.delay(
+                UserEmail = user.email,
+                did = did,
+                baseId = dg.get('baseid'),
+                rev = dg.get('rev'),
+                schemaJson = self.schema_json,
+                dgJson = self.dg_json,
+                )
+    
+        return Response(
+                status=201,
+                response=update_dg.content,
                 mimetype='application/json'
                 )
 
 
-    def delete_cache(self):
-        self.node = DataguidNode.nodes.get_or_none(did=self.did)
+    def delete_indexd(self, revision=None):
+        ''' Delete Dataguid from Indexd
+            TODO Unittest
+        '''
+        if revision is not None:
+            delete_dg = requests.delete(
+                    url = self.indexd_url+'index/'+self.did+'?rev='+revision,
+                    auth = self.auth,
+                    headers = {'content-type': 'application/json'}
+                    )
 
-        if self.node is None:
-            response_message = {
-                        "@id": self.did,
-                        "status": 404,
-                        "message": "No Identifier found for dataguid {}".format(self.did)
-                        }
-            return Response(status = 404,
-                        response= json.dumps(response_message),
-                        mimetype='text/html'
+            if delete_dg.status ==404:
+                return Response(
+                        status = 404,
+                        response = json.dumps({
+                            '@id': self.did,
+                            'status': 404,
+                            'message': 'Could not find identifier to be deleted'
+                            })
                         )
 
-        else:
-            dg_json = self.node.dg_json
-            schema_json = self.node.schema_json
-
-            for dl in self.node.download:
-                dl.delete()
-                 
-            for cs in self.node.checksum:
-                cs.delete()
-                    
-            self.node.delete()
-
-            return Response(status=200,
-                    response = json.dumps({
-                        '@id': self.did,
-                        'status': 200,
-                        'message': 'Successfully Deleted Dataguid {}'.format(self.did),
-                        'dataguid': dg_json,
-                        'schema.org': schema_json
-                        }),
-                    mimetype='application/json'
+            # submit delete task to celery
+            delete_task = delete_dataguid.delay(
+                    did = re.sub(r'^\w*:', '',self.did),
+                    rev = revision
                     )
-                
 
-############################
-#  Neomodel representation #
-############################
-
-class DataguidNode(StructuredNode): 
-    __label__ = 'Dataguid'
-    dg_json = JSONProperty()
-    schema_json = JSONProperty()
-    
-    did = StringProperty(required=True, unique_index=True)
-    baseId = StringProperty(required=True)
-     
-    #relationships
-    checksum = RelationshipTo('Checksum', 'hasChecksum')
-    download = RelationshipTo('Download', 'hasDownload')
-
-
-class Checksum(StructuredNode):
-    Value = StringProperty(required = True)
-    Method = StringProperty(required = True)
-
-
-class Download(StructuredNode):
-    fileFormat = StringProperty()
-    url = StringProperty(required = True)
-    contentSize = StringProperty()
-     
-    CLOUDS = {'Azure': 'Azure', 'Google Public Cloud': 'GPC', 'Amazon Web Services': 'AWS'}
-    cloud = StringProperty(choices=CLOUDS)
         
-    checksum = RelationshipTo('Checksum', 'hasChecksum')
+            return Response(
+                    status = delete_dg.status_code,
+                    response = json.dumps({
+                        'status': delete_dg.status_code,
+                        'message': 'Deleted Dataguid',
+                        'did': self.did,
+                        'rev': revision
+                        }),
 
 
-try:
-    install_labels(Checksum)
-    install_labels(Download)
-    install_labels(DataguidNode)
+                    mimetype = 'application/json'
+                    )
+    
+        else:
+            get_versions = requests.get(
+                    url = self.indexd_url+'index/'+self.did+'/versions',
+                    auth = self.auth,
+                    headers = {'content-type': 'application/json'}
+                    )
 
-except:
-    pass
+            if get_versions.status_code !=200:
+                return Response(
+                        status = get_versions.status_code,
+                        response = get_versions.content,
+                        mimetype='application/json'
+                        )
+            
+            versions = json.loads(get_versions.content.decode('utf-8'))
 
-   
+            revision_list = [ rev.get('rev') for rev in versions.values()]
+            baseId = versions.get('0', {}).get('baseid')
+
+
+            for rev in revision_list:
+                    temp_rev = rev
+                    delete_dg = requests.delete(
+                            url = self.indexd_url+'index/'+self.did+'?rev='+rev,
+                            auth = self.auth,
+                            headers = {'content-type': 'application/json'}
+                            )
+
+
+                    # submit delete task to celery
+                    delete_task = delete_dataguid.delay(
+                            did = re.sub(r'^\w*:', '', self.did),
+                            rev = rev
+                            )
+                 
+            return Response(
+                    status=delete_dg.status_code,
+                    response = json.dumps({
+                        'status': delete_dg.status_code,
+                        'message': 'Deleted Dataguid',
+                        'did': self.did,
+                        'baseId': baseId,
+                        'rev': revision_list
+                        })
+                    )
+
+
+
 #####################
 # Custom Exceptions #
 #####################
@@ -1112,8 +1204,8 @@ dataguid_schema_org = {
                         "@value": {'type': 'string'},
                         "@type": {'enum': ['PropertyValue']},
                         "name": {'enum': ['md5', 'sha', 'sha256', 'sha512', 'crc', 'etag']}
-                    }
-                },
+                        }
+                    },
                 {'type': 'string', 'pattern': '^.*[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$'}
             ]},
             'minItems': 1,
@@ -1122,7 +1214,12 @@ dataguid_schema_org = {
         'name': {'type':'string'},
         'contentUrl': {'type': 'array', 'items': {'type':'string', 'format': 'uri'}},
         'version': {'type':'string'},
-        'contentSize': {'type': 'string'},
+        'contentSize': {
+            'oneOf': [
+                {'type': 'string'},
+                {'type': 'integer'}
+                ]
+            },
         'author': {'oneOf': [
             {'type': 'object', 'properties':{
                 '@type': {'type': 'string'},
@@ -1139,7 +1236,7 @@ dataguid_schema_org = {
             ]}}
         ]},
     },
-    'required': ['contentUrl', 'identifier', 'contentSize', 'name']
+    'required': ['contentUrl', 'identifier', 'contentSize']
     }
         
 
@@ -1200,3 +1297,4 @@ dataguid_schema = {
     'required': ['size', 'hashes', 'urls', 'form'],
     'type': 'object'
     }
+ 
