@@ -32,7 +32,7 @@ app = Flask('ors',
 app.config['DEBUG'] = True
 app.config['TESTING'] = True
 app.config['SECRET_KEY'] = 'kYhD3X9@8Z}FeX2'
-app.config['SERVER_NAME'] = os.environ.get('URL')
+app.config['SERVER_NAME'] = os.environ.get('SERVER_NAME')
 
 # configure bugsnag
 bugsnag.configure(
