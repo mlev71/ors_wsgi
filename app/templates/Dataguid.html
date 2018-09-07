@@ -1,9 +1,7 @@
 {% extends "base.html" %} 
 
    {% block dchead %}
-      <script type="application/ld+json">
-         {{data|tojson|safe}}
-      </script>
+      <script type="application/ld+json">{{data|tojson|safe}}</script>
 
 
    <!--Dublin Core Embedding for Ark-->
@@ -127,7 +125,7 @@
                      {% for cs in checksums %}
                      <tr> 
                         <th class='metadataVal checksumMethod'> {{cs['name']}} </th>
-                        <th class='metadataVal checksum'> {{cs['@value']}} </th>
+                        <th class='metadataVal checksum'> {{cs['value']}} </th>
                      </tr>
                      {% endfor %}
                      </table>

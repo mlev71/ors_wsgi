@@ -39,7 +39,7 @@ DOI_PREFIX = '10.25489'
 
 # file extension to mimetype conversions
 mimetype = {
-    ".tar": "application/x-tar", 
+    ".tar": "application/x-tar",
     ".zip": "application/zip",
     ".sh": "application/x-sh",
     ".rft": "application/rtf",
@@ -61,16 +61,16 @@ mimetype = {
 #########################################################
 
 
-class CoreMetadata(object):    
+class CoreMetadata(object):
     def __init__(self, *args, **kwargs):
-        '''Create Core metadata Object       
+        '''Create Core metadata Object
 
         If minting will have arguments data and options
 
         Else will just pass guid, and attempt to delete self from api
         '''
 
-        
+
         self.guid = kwargs.get('guid')
 
         self.data = kwargs.get('data')
@@ -83,11 +83,11 @@ class CoreMetadata(object):
         if self.data is not None:
             if not set(self.required_keys).issubset(set(self.data.keys())):
                 raise MissingKeys(self.data.keys(), self.required_keys)
- 
-     
+
+
 
 class Ark(CoreMetadata):
-    required_keys = set(['name','author', 'dateCreated']) 
+    required_keys = set(['name','author', 'dateCreated'])
     optional_keys = set(['@type', 'expires','includedInDataCatalog', 'contentUrl'])
     endpoint = "https://ezid.cdlib.org/id/"
     auth = (EZID_USER, EZID_PASSWORD)
@@ -99,12 +99,12 @@ class Ark(CoreMetadata):
         endpoint = "https://ezid.cdlib.org/id/"+self.guid
         api_response = requests.get(url = endpoint)
 
-        try: 
+        try:
             assert api_response.status_code == 200
             assert api_response.content is not None
 
         except:
-           raise Identifier404(self.guid, api_response, EZID+self.guid)    
+           raise Identifier404(self.guid, api_response, EZID+self.guid)
 
         self.anvl = ingestAnvl(api_response.content.decode('utf-8'))
 
@@ -133,7 +133,7 @@ class Ark(CoreMetadata):
                 erc_dict ={key: val for key,val in (line.split(': ',1) for line in erc_lines)}
 
 
-            # Label ERC Metadata in JSON-LD with IRIs 
+            # Label ERC Metadata in JSON-LD with IRIs
             erc_iri = {'who':'h11', 'what':'h12', 'when':'h13', 'where':'h14', 'how': 'h14'}
             for key, value in erc_dict.items():
                 if key in erc_iri.keys():
@@ -147,9 +147,9 @@ class Ark(CoreMetadata):
         elif profile == 'dc':
             json_ld = { re.sub('dc.', '', key): value for key, value in anvl.items() if 'dc.' in key}
             json_ld['@type'] = anvl.get('dc.type')
-            json_ld['@context'] = 'http://purl.org/dc/elements/1.1/' 
-            json_ld['@id'] = 'https://n2t.net/'+self.guid 
-            json_ld['identifier'] = 'https://n2t.net/'+self.guid 
+            json_ld['@context'] = 'http://purl.org/dc/elements/1.1/'
+            json_ld['@id'] = 'https://n2t.net/'+self.guid
+            json_ld['identifier'] = 'https://n2t.net/'+self.guid
             profile = 'dc'
 
         elif profile == 'datacite':
@@ -158,7 +158,7 @@ class Ark(CoreMetadata):
                 doi_metadata = DoiXML(xml)
                 json_ld = doi_metadata.parse()
                 profile='doi'
-            else: 
+            else:
                 doi_metadata = DoiANVL(anvl, self.guid)
                 json_ld = doi_metadata.to_json_ld()
 
@@ -169,40 +169,40 @@ class Ark(CoreMetadata):
             anvl['identifier'] = 'https://n2t.net/' + self.guid
             anvl['@context'] = 'https://schema.org'
 
-            json_ld = unroll(anvl) 
+            json_ld = unroll(anvl)
 
         else:
             # If Profile is Unknown raise an Exception
             raise UnknownProfile400(self, anvl.get('_profile'))
 
-        # remove useless keys from 
+        # remove useless keys from
 
         json_ld['url'] = anvl.get('_target')
         for key in self.useless_keys:
             if key in json_ld.keys():
                 json_ld.pop(key)
-        
+
 
         return json_ld, profile
 
     def delete_api(self):
-        ''' Delete Ark from EZID 
+        ''' Delete Ark from EZID
         '''
- 
+
         ezid_delete = requests.delete(
                 auth = requests.auth.HTTPBasicAuth(self.auth[0], self.auth[1]),
                 url="https://ezid.cdlib.org/id/"+self.guid,
                 )
 
 
-        if ezid_delete.status_code == 200: 
+        if ezid_delete.status_code == 200:
             return Response(
                     status = 200,
                     response = json.dumps({
                         '@id': self.guid,
                         'message': 'Successfully Deleted Identifier',
                         'code': 200,
-                        'ezid_response': { 
+                        'ezid_response': {
                             'status': ezid_delete.status_code,
                             'message' :ezid_delete.content.decode('utf-8')
                             }
@@ -216,7 +216,7 @@ class Ark(CoreMetadata):
                         '@id': self.guid,
                         'message': 'Unauthorized to Delete Identifier',
                         'code': 401,
-                        'ezid_response': { 
+                        'ezid_response': {
                             'status': ezid_delete.status_code,
                             'message' :ezid_delete.content.decode('utf-8')
                             }
@@ -230,30 +230,30 @@ class Ark(CoreMetadata):
                         '@id': self.guid,
                         'message': 'Failed to Delete Identifier',
                         'code': 400,
-                        'ezid_response': { 
+                        'ezid_response': {
                             'status': ezid_delete.status_code,
                             'message' :ezid_delete.content.decode('utf-8')
                             }
                         }),
                     mimetype='application/json')
 
-    
+
     def post_api(self, status='reserved'):
         ''' Interface for minting ARK identifiers '''
-        payload = profileFormat(flatten(self.data))        
-       
+        payload = profileFormat(flatten(self.data))
+
         if self.data.get('@id') is None and self.data.get('identifier') is None:
             target = self.endpoint.replace('id/', 'shoulder/ark:/13030/d3')
             landing_page = 'https://ors.datacite.org/${identifier}'
-    
+
             payload.update({
                     "_target": landing_page,
                     "_status": status,
                     "_profile": "NIHdc"
                         })
-    
+
             anvl_payload = outputAnvl(payload)
-    
+
             mint_response = requests.post(
                     auth = requests.auth.HTTPBasicAuth(self.auth[0], self.auth[1]),
                     url=target,
@@ -262,10 +262,10 @@ class Ark(CoreMetadata):
                     )
 
         else:
-            target = "".join([self.endpoint, self.data.get('@id')]) 
+            target = "".join([self.endpoint, self.data.get('@id')])
 
             landing_page = self.data.get('url', 'https://ors.datacite.org/{}'.format(self.data.get('@id')) )
-    
+
             payload.update({
                     "_target": landing_page,
                     "_status": status,
@@ -290,13 +290,13 @@ class Ark(CoreMetadata):
 
 
         if ezid_status == 200 or ezid_status == 201:
-        
+
             response_message = {
-                "@id": identifier,  
+                "@id": identifier,
                 "message": "Successfully minted identifier",
                 "code": 201,
                 "ezid_response": {
-                        "status": ezid_status, 
+                        "status": ezid_status,
                         "message": ezid_response
                         },
                     }
@@ -304,26 +304,26 @@ class Ark(CoreMetadata):
             if self.data.get('expires') is not None and status!="public":
 
                 try:
-                    expiration = self.data.pop('expires')  
+                    expiration = self.data.pop('expires')
                     expiration_eta = parser.parse(expiration)
                 except:
                     response_message.update({
-                        "expiration": 
+                        "expiration":
                             {
-                                'status': 400, 
+                                'status': 400,
                                 'message': 'Failed to parse date {}'.format(expiration)
                                 }
                         })
 
 
-                task = delete_task.apply_async( 
+                task = delete_task.apply_async(
                         (target, self.auth[0], self.auth[1]),
                         eta = parser.parse(expiration)
                         )
-                
+
                 response_message.update({
                     "expiration": {
-                        'status': 200, 
+                        'status': 200,
                         'message': 'Identifier will be deleted',
                         }
                     })
@@ -340,7 +340,7 @@ class Ark(CoreMetadata):
                     status = 401,
                     response = json.dumps({
                         '@id': identifier,
-                        'message': 'Failed To Mint Identifier' + 
+                        'message': 'Failed To Mint Identifier' +
                         'ORS is not authorized on the prefix for identifer {}'.format(identifier),
                         'ezid_response': {
                             'code': ezid_status,
@@ -351,11 +351,11 @@ class Ark(CoreMetadata):
                     )
 
 
-        else: 
+        else:
             if ezid_response == "error: bad request - identifier already exists":
                 successfully_updated = []
                 failed_updated = []
-                for field, value in payload.items(): 
+                for field, value in payload.items():
                     try:
                         update_response = requests.post(
                                 auth = requests.auth.HTTPBasicAuth(self.auth[0], self.auth[1]),
@@ -388,7 +388,7 @@ class Ark(CoreMetadata):
 
 
                 if self.data.get('expires') is not None and status!="public":
-                    expiration = self.data.pop('expires')  
+                    expiration = self.data.pop('expires')
                     try:
                         expiration_datetime = parser.parse(expiration)
                         exp = datetime.datetime.now() - expiration_datetime
@@ -399,18 +399,18 @@ class Ark(CoreMetadata):
                                 )
 
                         response_message.update(
-                                {"expiration": 
+                                {"expiration":
                                     {
-                                    'status': 200, 
+                                    'status': 200,
                                     'message': 'Identifier will be deleted in {} seconds'.format(exp.seconds),
                                 }
                                     })
-                        
+
                     except:
                         response_message.update(
-                                {"expiration": 
+                                {"expiration":
                                     {
-                                        'status': 400, 
+                                        'status': 400,
                                         'message': 'Failed to parse date {}'.format(expiration)
                                         }
                                     })
@@ -421,14 +421,14 @@ class Ark(CoreMetadata):
 
 
 
-                return Response(    
+                return Response(
                     status = response_message.get('code'),
                     response = json.dumps(response_message),
                     mimetype = 'application/json'
                         )
 
 
-            else: 
+            else:
                 return Response(
                         status = 400,
                         response = json.dumps({
@@ -436,26 +436,30 @@ class Ark(CoreMetadata):
                             'message': 'Identifier Not Sucsessfully Minted',
                             'ezid': {
                                     'status': ezid_status,
-                                    'message': ezid_response 
+                                    'message': ezid_response
                                     }
                                 })
                         )
 
 
-class Doi(CoreMetadata): 
+
+class Doi(CoreMetadata):
     required_keys = set(['name', 'author','datePublished'])
-    optional_keys = set(['includedInDataCatalog', 'dateCreated', 'additionalType', 'description', 
+    optional_keys = set(['includedInDataCatalog', 'dateCreated', 'additionalType', 'description',
                         'keywords', 'license', 'version', 'citation', 'isBasedOn',
                         'predecessorOf', 'successorOf', 'hasPart', 'isPartOf', 'funder',
                         'contentSize', 'fileFormat', 'contentUrl'])
-    endpoint = DATACITE_URL 
+    endpoint = DATACITE_URL
     auth = requests.auth.HTTPBasicAuth(DATACITE_USER, DATACITE_PASSWORD)
 
     def post_api(self):
         ''' Submit XML payload to Datacite
         '''
         response = {}
-        doi = self.data.get('@id').replace('doi:/','')
+        if self.data.get('@id') is not None:
+            doi = self.data.get('@id').replace('doi:/','')
+        else:
+            doi = '10.25489/'
 
 
         # register metadata
@@ -469,6 +473,27 @@ class Doi(CoreMetadata):
                 headers = {'Content-Type':'application/xml;charset=UTF-8'},
                 )
 
+        try:
+            assert create_metadata.status_code == 201
+            doi = re.sub("OK |\(|\)", "", create_metadata.content.decode('utf-8'))
+            landing_page = self.data.get('url', 'https://ors.datacite.org/doi:/'+doi)
+
+        except AssertionError:
+            return Response(
+                    status = 500,
+                    response = json.dumps({
+                        'status': 500,
+                        'message': 'Unable to submit metadata',
+                        'datacite': {
+                            'status': create_metadata.status_code,
+                            'message': create_metadata.content.decode('utf-8')
+                            }
+
+                        })
+
+                    )
+
+
         response.update({
             'metadataRegistration': create_metadata.content.decode('utf-8')
             })
@@ -478,10 +503,9 @@ class Doi(CoreMetadata):
         reserve_doi = requests.put(
                 url = DATACITE_URL + '/doi/' + doi,
                 auth = self.auth,
-                data = "doi="+doi+"\nurl="+self.data.get('url'),
+                data = "doi="+doi+"\nurl="+landing_page,
                 )
 
-        #assert create_metadata.status_code == 201
 
         response.update({
             'doiReservation': reserve_doi.content.decode('utf-8')
@@ -541,7 +565,7 @@ class Doi(CoreMetadata):
             else:
                 return Response(status=404,
                         response = json.dumps({
-                            '@id': self.guid, 
+                            '@id': self.guid,
                             'code': 404,
                             'url':'https://data.datacite.org/application/vnd.schemaorg.ld+json/'+ self.guid,
                             'error': 'Doi Was not Found'}),
@@ -562,7 +586,7 @@ class Doi(CoreMetadata):
 
         if content_type == 'text/html':
             template = jinja_env.get_template('Doi.html')
-            return Response(status=200, 
+            return Response(status=200,
                     response = template.render(data = payload),
                     mimetype = 'text/html')
         else:
@@ -597,7 +621,7 @@ class Doi(CoreMetadata):
             else:
                 return Response(status=404,
                         response = json.dumps({
-                            '@id': self.guid, 
+                            '@id': self.guid,
                             'code': 404,
                             'url':'https://data.datacite.org/application/vnd.schemaorg.ld+json/'+ self.guid,
                             'error': 'Doi Was not Found'}),
@@ -617,17 +641,17 @@ class Doi(CoreMetadata):
 
             if content_type == 'text/html':
                 template = jinja_env.get_template('Doi.html')
-                return Response(status=200, 
+                return Response(status=200,
                         response = template.render(data = json_ld),
                         mimetype = 'text/html')
             else:
-                return Response( 
+                return Response(
                         status= 200,
                         response = json.dumps(json_ld),
                         mimetype='application/ld+json'
                         )
 
-        
+
 
 
 
@@ -639,7 +663,7 @@ class Doi(CoreMetadata):
             assert works_response.status_code == 200
         except AssertionError:
             raise NotADataciteDOI(self.guid)
-            
+
         try:
             payload = works_response.content.decode('utf-8')
             works = json.loads(payload).get('data', {}).get('attributes', {})
@@ -647,25 +671,25 @@ class Doi(CoreMetadata):
             assert works.get('xml') is not None
         except AssertionError:
             raise IncompletePayload(self.guid, payload)
-        
+
         self.response = DoiResponse(works)
         try:
 
             json_ld = self.response.parse()
         except:
             raise InvalidPayload(self.guid, works)
-        
+
         return json_ld
 
 
-    def delete_api(self): 
+    def delete_api(self):
         doi = self.guid
 
         delete_response = requests.delete(
                 url = self.endpoint+'/metadata/'+doi,
                 auth = requests.auth.HTTPBasicAuth(self.auth[0], self.auth[1])
-                )        
-        
+                )
+
         response_dict = {
                 'status_code': delete_response.status_code,
                 'content': delete_response.content.decode('utf-8')
@@ -679,13 +703,13 @@ class Minid(object):
         self.ark = re.sub('minid:', 'ark:/57799/', guid)
         self.anvl = None
         self.json_ld = None
-         
+
         try:
             assert 'ark:/57799/' in self.ark
         except AssertionError:
             raise OutOfPath400(self)
 
-    def fetch(self): 
+    def fetch(self):
         ezid_response = requests.get(
             url = EZID+self.ark
         )
@@ -695,17 +719,17 @@ class Minid(object):
             assert ezid_response.status_code == 200
             assert ezid_response.content is not None
         except AssertionError:
-            raise Identifier404(self.ark, ezid_response, EZID+self.ark)    
+            raise Identifier404(self.ark, ezid_response, EZID+self.ark)
 
 
-        anvl = ezid_response.content.decode('utf-8') 
+        anvl = ezid_response.content.decode('utf-8')
         self.anvl = ingestAnvl(anvl)
 
         minid_response = requests.get(
-            url = self.anvl.get('_target'), 
+            url = self.anvl.get('_target'),
             headers = {'Accept': 'application/json'}
         )
-        
+
         try:
             assert minid_response.status_code == 200
             # assert the content is not an error message
@@ -714,16 +738,16 @@ class Minid(object):
 
         self.minid_json = json.loads(minid_response.content.decode('utf-8'))
 
-         
-    def to_json_ld(self): 
+
+    def to_json_ld(self):
         minid_json = self.minid_json
         json_ld = {}
-    
+
         # @id and identifier
         full_id ='https://n2t.net/'+minid_json.get('identifier')
         json_ld['@id'] = 'https://n2t.net/'+minid_json.get('identifier')
         json_ld['identifier'] = [full_id]
-    
+
         # name
         titles = minid_json.get("titles")
         if titles is not None:
@@ -731,32 +755,32 @@ class Minid(object):
                 json_ld['name'] = titles[0].get('title')
             if isinstance(titles, str):
                 json_ld['name'] = titles
-    
-        # add checksum 
-        json_ld['identifier'].append({'@type': 'PropertyValue', 
-             'name': minid_json.get('checksum_function'), 
+
+        # add checksum
+        json_ld['identifier'].append({'@type': 'PropertyValue',
+             'name': minid_json.get('checksum_function'),
              'value': minid_json.get('checksum')})
-    
+
         # url
         json_ld['url'] = self.anvl.get('_target')
-    
+
         # contentUrl
         json_ld['contentUrl'] = [link.get('link') for link in minid_json.get('locations')]
-    
+
         # date created
         json_ld['dateCreated'] = minid_json.get('created')
-    
+
         # author
         json_ld['author'] = minid_json.get('creator')
-    
+
         self.json_ld = json_ld
-     
+
         return json_ld
 
 
 class Dataguid(object):
     auth = requests.auth.HTTPBasicAuth(
-            os.environ.get('INDEXD_USER'), 
+            os.environ.get('INDEXD_USER'),
             os.environ.get('INDEXD_PASSWORD')
             )
     indexd_url = os.environ.get('INDEXD_URL')
@@ -765,18 +789,18 @@ class Dataguid(object):
     def __init__(self, schema_json=None, dg_json=None, did=None):
         if schema_json is not None:
             self.schema_json = schema_json
-            self.dg_json = None 
+            self.dg_json = None
 
         if dg_json is not None:
             self.dg_json = dg_json
-        
-        self.did = did 
+
+        self.did = did
 
 
     def to_dataguid(self):
-        ''' Convert schema.org json-ld to Dataguid metadata format 
+        ''' Convert schema.org json-ld to Dataguid metadata format
         '''
-        self.checksums = list(filter(lambda x: isinstance(x, dict), self.schema_json.get('identifier')))  
+        self.checksums = list(filter(lambda x: isinstance(x, dict), self.schema_json.get('identifier')))
 
         self.dg_json = {
                 'form': 'object',
@@ -785,24 +809,24 @@ class Dataguid(object):
                 'file_name': re.findall(r'\w*.\w*$', self.schema_json.get('contentUrl')[0])[0],
                 'size': int(self.schema_json.get('contentSize')),
 
-                # Metadata breaks posting to 
-                #'metadata': self.schema_json 
+                # Metadata breaks posting to
+                #'metadata': self.schema_json
                 }
-    
-        #if self.schema_json.get('dateCreated') is None:
-        #    self.schema_json['dateCreated'] = str(datetime.datetime.now())
-    
-        #if self.schema_json.get('url') is None:
-        #    self.schema_json['url'] = ORS_URL+'dataguid:/{}'.format(self.schema_json.get('@id'))    
-    
-        #if self.schema_json.get('version') is not None:
-        #    self.dg_json['version'] = self.schema_json.get('version')  
+
+        if self.schema_json.get('dateCreated') is None:
+            self.schema_json['dateCreated'] = str(datetime.datetime.now())
+
+        if self.schema_json.get('url') is None:
+            self.schema_json['url'] = ORS_URL+'dataguid:/{}'.format(self.schema_json.get('@id'))
+
+        if self.schema_json.get('version') is not None:
+            self.dg_json['version'] = self.schema_json.get('version')
 
 
     def to_schema(self):
-        ''' Convert Dataguid metadata format to schema.org json-ld 
+        ''' Convert Dataguid metadata format to schema.org json-ld
         '''
-    
+
         self.schema_json = {
                 '@context': 'https://schema.org',
                 '@id': self.dg_json.get('did'),
@@ -824,9 +848,9 @@ class Dataguid(object):
 
 
     def fetch_indexd(self, content_type, format_):
-        ''' Return results from Indexd 
+        ''' Return results from Indexd
             TODO Unittest
-        '''        
+        '''
         get_indexd = requests.get(
                 url = self.indexd_url+'index/'+self.did,
                 headers={'content-type': 'application/json'}
@@ -848,18 +872,18 @@ class Dataguid(object):
                         mimetype='text/html'
                         )
 
-        
+
         else:
             self.dg_json = json.loads(get_indexd.content.decode('utf-8'))
- 
+
             if content_type == 'text/html':
                 self.to_schema()
                 template = jinja_env.get_template('Dataguid.html')
                 return template.render(
-                        data=self.schema_json, 
+                        data=self.schema_json,
                         checksums=list(filter(lambda x: isinstance(x, dict), self.schema_json.get('identifier')))
                         )
-    
+
             else:
                 if format_ == 'dg':
                     return Response(
@@ -908,7 +932,7 @@ class Dataguid(object):
                     response=post_dg.content,
                     mimetype='application/json'
                     )
-    
+
         else:
             return Response(
                     status = 400,
@@ -919,7 +943,7 @@ class Dataguid(object):
                         })
 
                     )
- 
+
     def update_indexd(self, user, rev):
         update_dg = requests.put(
             url = self.indexd_url+'index/'+self.did+'?rev='+rev,
@@ -935,10 +959,10 @@ class Dataguid(object):
             headers = {'content-type':'application/json'}
         )
 
-        dg = json.loads(update_dg.content.decode('utf-8')) 
+        dg = json.loads(update_dg.content.decode('utf-8'))
         did = re.sub(r'^\w*:', '', self.did)
 
-        # add to put_task 
+        # add to put_task
         put_task = put_dataguid.delay(
                 UserEmail = user.email,
                 did = did,
@@ -947,7 +971,7 @@ class Dataguid(object):
                 schemaJson = self.schema_json,
                 dgJson = self.dg_json,
                 )
-    
+
         return Response(
                 status=201,
                 response=update_dg.content,
@@ -982,7 +1006,7 @@ class Dataguid(object):
                     rev = revision
                     )
 
-        
+
             return Response(
                     status = delete_dg.status_code,
                     response = json.dumps({
@@ -995,7 +1019,7 @@ class Dataguid(object):
 
                     mimetype = 'application/json'
                     )
-    
+
         else:
             get_versions = requests.get(
                     url = self.indexd_url+'index/'+self.did+'/versions',
@@ -1009,7 +1033,7 @@ class Dataguid(object):
                         response = get_versions.content,
                         mimetype='application/json'
                         )
-            
+
             versions = json.loads(get_versions.content.decode('utf-8'))
 
             revision_list = [ rev.get('rev') for rev in versions.values()]
@@ -1030,7 +1054,7 @@ class Dataguid(object):
                             did = re.sub(r'^\w*:', '', self.did),
                             rev = rev
                             )
-                 
+
             return Response(
                     status=delete_dg.status_code,
                     response = json.dumps({
@@ -1050,34 +1074,34 @@ class Dataguid(object):
 class NotADataciteDOI(Exception):
     def __init__(self, doi):
         self.doi
-        
+
     def output(self):
         message = {
             'doi': 'http://doi.org/'+ self.doi,
             'error': 'http://doi.org/'+self.doi+' is not a Datacite Doi'
         }
         return Response(status=404, response= json.dumps(message))
-    
+
 class IncompletePayload(Exception):
     def __init__(self, doi, payload):
         self.doi = doi
         self.payload = payload
-    
+
     def output(self):
         message = {
             'doi': 'http://doi.org/'+self.doi,
             'error': 'Payload is missing required metadata',
             'payload': payload
         }
-        
+
         return Response(status=400, response= json.dumps(message))
-    
-    
+
+
 class InvalidPayload(Exception):
     def __init__(self, doi, payload):
         self.payload = payload
         self.doi = doi
-        
+
     def output(self):
         message = {
             'doi': 'http://doi.org'+self.doi,
@@ -1090,9 +1114,9 @@ class MissingKeys(Exception):
     ''' Exception to raise when keys are missing
     '''
 
-    def __init__(self, supplied_keys, required_keys): 
+    def __init__(self, supplied_keys, required_keys):
         missing_keys = list(set(required_keys).difference(set(supplied_keys)))
-        self.message = { 
+        self.message = {
                 'status': 400,
                 'message': 'Object missing required keys',
                 'missing_keys': missing_keys
@@ -1104,7 +1128,7 @@ class MissingKeys(Exception):
                 response = json.dumps(self.message),
                 mimetype = 'application/json'
                 )
-        
+
 
 
 class Identifier404(BaseException):
@@ -1123,7 +1147,7 @@ class Identifier404(BaseException):
        return  Response(
                status = 404,
                response = json.dumps(self.response_message),
-               mimetype = 'application/json' 
+               mimetype = 'application/json'
                )
 
     def html_response(self):
@@ -1132,7 +1156,7 @@ class Identifier404(BaseException):
 
 
 class OutOfPath400(BaseException):
-    """Minid is not within the official Minid Path 
+    """Minid is not within the official Minid Path
     """
     def __init__(self, minid):
         self.response_message = {
@@ -1141,21 +1165,21 @@ class OutOfPath400(BaseException):
                 'error': 'Minid Identifier does not have requied prefix ark:/57799/ or the alias minid:',
                 'errorCode': 400
                 }
-        
+
 
     def json_response(self):
        return  Response(
                status = 400,
                response = json.dumps(self.response_message),
-               mimetype = 'application/json' 
+               mimetype = 'application/json'
                )
 
     def html_response(self):
         template = jinja_env.get_template('IdentifierError.html')
         return template.render(data = self.response_message)
- 
+
 class UnknownProfile400(BaseException):
-    """Ark is not within the official Minid Path 
+    """Ark is not within the official Minid Path
     """
     def __init__(self, Ark, profile):
         self.response_message = {
@@ -1165,13 +1189,13 @@ class UnknownProfile400(BaseException):
                 'errorCode': 400,
                 'anvl': Ark.anvl
                 }
-        
+
 
     def json_response(self):
        return  Response(
                status = 400,
                response = json.dumps(self.response_message),
-               mimetype = 'application/json' 
+               mimetype = 'application/json'
                )
 
     def html_response(self):
@@ -1238,7 +1262,196 @@ dataguid_schema_org = {
     },
     'required': ['contentUrl', 'identifier', 'contentSize']
     }
-        
+
+doi_schema = {
+    '$schema': 'http://json-schema.org/schema#',
+    'title': 'Doi',
+    'additionalProperties': False,
+    'description': 'Schema.org Payload used to Create or Update a Datacite DOI',
+    'required': ['name', 'author', 'publisher', 'form', 'datePublished'],
+    'type': 'object',
+    'properties': {
+        '@id': {'type': 'string'},
+        '@context': {'enum': ['https://schema.org']},
+        '@type': {'enum': ['Dataset', 'CreativeWork', 'SoftwareSourceCode', 'SoftwareApplication', 'Collection', 'Report']},
+        'identifier': {
+            'type': 'array',
+            'uniqueItems': True,
+            'items': {
+                'anyOf': [
+                    {'type': 'object', 'properties': {
+                        "value": {'type': 'string'},
+                        "@type": {'enum': ['PropertyValue']},
+                        "name": {'enum': ['md5', 'sha', 'sha256', 'sha512', 'crc', 'etag']}
+                        }
+                    },
+                {'type': 'string'}
+            ]},
+            'minItems': 1,
+        },
+        'url': {
+            'type': 'string',
+            'format': 'uri'
+        },
+        'includedInDataCatalog': {
+                'oneOf': [
+                    {'type': 'string', 'description': 'Single Persistant Identifier'},
+                    {
+                        'type': 'object', 'properties': {
+                        '@id': {'type': 'string'},
+                        '@type': {'type': 'string'},
+                        'name': {'type': 'string'}
+                        }
+                    },
+                    {
+                        'type': 'array',
+                        'items': {
+                            'anyOf' : [
+                                 {'type': 'string', 'description': 'Single Persistant Identifier'},
+                                {
+                                'type': 'object', 'properties': {
+                                '@id': {'type': 'string'},
+                                '@type': {'type': 'string'},
+                                'name': {'type': 'string'}
+                                    }
+                                }]
+                        }
+                    }
+                ]
+        },
+        'name': {
+            'description': 'Name of the resource',
+            'type': 'string'
+        },
+        'author': {
+            'oneOf': [
+                    {
+                        'type':'object',
+                        'properties': {
+                            '@id': {'type':'string'},
+                            '@type': {'enum': ['Person', 'Organization']},
+                            'name': {'type': 'string'}
+                        }
+                    },
+                    {
+                        'type': 'array', 'items': {
+                            'anyOf': [{
+                        'type':'object',
+                        'properties': {
+                            '@id': {'type':'string'},
+                            '@type': {'enum': ['Person', 'Organization']},
+                            'name': {'type': 'string'}
+                            }
+                        }]
+                        }
+
+                    }
+            ]
+        },
+        'publisher': {
+            'oneOf': [
+                {'type'}
+
+            ]
+
+        }
+        'datePublished': {
+            'type': 'string'
+        },
+        'dateCreated': {
+            'type': 'string'
+        },
+        'additionalType': {
+            'oneOf': [
+                    {'type': 'string'},
+                    {
+                        'type': 'array',
+                        'items': {'type': 'string'}
+                    }
+            ]
+        },
+        'description': {
+            'type': 'string'
+        },
+        'keywords': {
+            'oneOf': [
+                {'type': 'string'},
+                {'type': 'array',
+                'items': {'type': 'string'}}
+            ]
+        },
+        'license': {'type': 'string', 'format': 'uri'},
+        'version': {'type': 'string'},
+        'citation': {'type': 'string'},
+        'funder': {
+                'anyOf': [
+                    {'type': 'string'},
+                    {'type': 'object', 'properties':{
+                        '@id': {'type': 'string'},
+                        '@type': {'type': 'string'},
+                        'name': {'type': 'string'}
+                    }},
+                    {'type': 'array', 'items':
+                        {'anyOf': [
+                            {'type': 'string'},
+                            {'type': 'object', 'properties':{
+                            '@id': {'type': 'string'},
+                            '@type': {'type': 'string'},
+                            'name': {'type': 'string'}
+                            }}
+                        ]}
+
+
+                    }
+                ]
+        },
+        'contentSize': {
+            'type': 'string'
+        },
+        'fileFormat': {
+            'type': 'string'
+        },
+        'contentUrl': {
+            'type': 'string',
+            'format': 'uri'
+        },
+         'isBasedOn': {
+                'anyOf': [
+                    {'type': 'string'},
+                    {'type': 'array',
+                    'items': {'type': 'string'}}
+                ]
+        },
+        'predecessorOf': {
+                'oneOf': [
+                    {'type': 'string'},
+                    {'type': 'array',
+                    'items': {'type': 'string'}}
+                ]
+        },
+        'successorOf': {
+                'anyOf': [
+                    {'type': 'string'},
+                    {'type': 'array',
+                    'items': {'type': 'string'}}
+                ]
+        },
+        'hasPart': {
+                'anyOf': [
+                    {'type': 'string'},
+                    {'type': 'array',
+                    'items': {'type': 'string'}}
+                ]
+        },
+        'isPartOf': {
+                'anyOf': [
+                    {'type': 'string'},
+                    {'type': 'array',
+                    'items': {'type': 'string'}}
+                ]
+        }
+    }
+}
 
 dataguid_schema = {
     '$schema': 'http://json-schema.org/schema#',
@@ -1297,4 +1510,3 @@ dataguid_schema = {
     'required': ['size', 'hashes', 'urls', 'form'],
     'type': 'object'
     }
- 

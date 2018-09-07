@@ -38,9 +38,11 @@ def outputDataciteXML(doi_json):
     )
     
     resource = E.resource(
-        E.identifier(doi_json.get('@id').replace('doi:/',''), identifierType="DOI"),     
         E.publicationYear(doi_json.get('datePublished'))
     )
+
+    if doi_json.get('@id') is not None:
+        identifier = etree.SubElement(resource, "identifier", identifierType="DOI")._setText(doi_json.get('@id').replace('doi:/',''))
 
     resourceType = etree.SubElement(resource, "resourceType", resourceTypeGeneral='Dataset')._setText("CreativeWork")    
 
@@ -75,28 +77,26 @@ def outputDataciteXML(doi_json):
     if not all([id_ is None for id_ in relatedIds.values()]):
         related_identifiers = etree.SubElement(resource, "relatedIdentifiers")
 
-    dc = doi_json.get('includedInDataCatalog')
-    if dc is not None:
-        if isinstance(dc, str):
-            etree.SubElement(related_identifiers, "relatedIdentifier", relatedIdentifierType="URL",
-                                relationType="IsPartOf")._setText(dc)
-        
-        if isinstance(dc, dict):
-            # get identifier of includedInDataCatalog
-            dc_id = dc.get('@id')
-            etree.SubElement(related_identifiers, "relatedIdentifier", relatedIdentifierType="URL",
-                                relationType="IsPartOf")._setText(dc_id)
-            # add datacatalog name to descriptions
-            dc_name = dc.get('name')
-            etree.SubElement(descriptions, "description", descriptionType="SeriesInformation")._setText(dc_name)
+        dc = doi_json.get('includedInDataCatalog')
+        if dc is not None:
+            if isinstance(dc, str):
+                etree.SubElement(related_identifiers, "relatedIdentifier", relatedIdentifierType="URL",
+                                    relationType="IsPartOf")._setText(dc)
+            
+            if isinstance(dc, dict):
+                # get identifier of includedInDataCatalog
+                dc_id = dc.get('@id')
+                etree.SubElement(related_identifiers, "relatedIdentifier", relatedIdentifierType="URL",
+                                    relationType="IsPartOf")._setText(dc_id)
+                # add datacatalog name to descriptions
+                dc_name = dc.get('name')
+                etree.SubElement(descriptions, "description", descriptionType="SeriesInformation")._setText(dc_name)
 
-    for key, value in relatedIds.items():
-        if key!='includedInDataCatalog':
-            parseRelatedIds(related_identifiers, key, value)
-        else:
-            continue
-
-    
+        for key, value in relatedIds.items():
+            if key!='includedInDataCatalog':
+                parseRelatedIds(related_identifiers, key, value)
+            else:
+                continue    
     
     # Version
     version = doi_json.get('version')

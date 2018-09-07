@@ -1,6 +1,5 @@
 #!/usr/bin/env python3 
 from flask import Flask, render_template, request, Response, session, redirect, url_for
-import uwsgi
 
 import globus_sdk
 import json
@@ -56,12 +55,14 @@ bugsnag.notify(Exception('Test Error on Starting Application'))
     #app.logger.info('Body: %s', request.get_data())
 
 # @app.after_request
-
+#def log_response_info():
+    #app.logger.info()
+    #app.logger
 
 @app.route('/', methods = ['GET'])
+@globus_auth
 def home():
-    ''' Render Homepage with Content Information
-    '''
+    ''' Render Homepage with Content Information'''
     # count the number of downloads, datasets, and 
 
     # return all data dictionaries
@@ -227,17 +228,19 @@ def register():
         payload = json.loads(request.data)
 
         if type(payload) == dict:
-            registered_team = TeamNode.get_or_create(
+            team = TeamNode.get_or_create(
                     {'element': payload.get('team'), 'kc': payload.get('kc')}
-                    )
+                    )[0]
             try:
                 new_user = UserNode(
                         email = payload.get('email'),
                         firstName = payload.get('firstName'),
-                        lastName = payload.get('lastName'),
-                        team = registered_team[0]
+                        lastName = payload.get('lastName')
                         )
+
+
                 new_user.save()
+                new_user.team.connect(team)
                 return Response(
                         status = 201,
                         response = json.dumps({'registeredUser': payload}),
@@ -250,7 +253,7 @@ def register():
                 if user is not None:
                     user.firstName = payload.get('firstName')
                     user.lastName = payload.get('lastName') 
-                    user.team.connect(registered_team[0])
+                    user.team.connect(team)
                     
                     user.save()
 
@@ -305,7 +308,19 @@ def robots():
 @app.route('/ark/put', methods = ['PUT'])
 @globus_auth
 def MintArk(user):
-    payload = json.loads(request.data)
+    try:
+        payload = json.loads(request.data.decode('utf-8'))
+        assert isinstance(payload, dict)
+    except:
+        return Response(
+                status = 400,
+                response = json.dumps({
+                    'status': 400,
+                    'message': 'Cannot Parse Payload',
+                    'data': request.data.decode('utf-8')
+                    })
+
+                )
 
     try:
         ark = Ark(data=payload)   
@@ -385,12 +400,7 @@ def MintDoi(user):
         return err.output()
 
 
-    api_response = obj.post_api()
-
-    return Response(
-            status = 201,
-            response = json.dumps(api_response)
-            )
+    return obj.post_api()
 
 
 @app.route('/doi:/<path:Shoulder>/<path:Id>', methods = ['DELETE'])
@@ -431,39 +441,130 @@ def GetDoi(Shoulder, Id):
 @app.route('/dataguid/put', methods = ['PUT'])
 @globus_auth
 def MintDataguid(user): 
-    payload = json.loads(request.data)
 
     try:
-        validate(payload, dataguid_schema_org)
-
-    except ValidationError as err:
+        payload = json.loads(request.data.decode('utf-8'))
+    except:
         return Response(
                 status = 400,
+                response= request.data
+
+                )
+        '''
                 response = json.dumps({
                     'status': 400,
-                    'message': 'Bad Payload',
-                    'validationError': str(err)
+                    'message': "Could not parse payload",
+                    'payload': request.data
                     })
-                )
+        '''
+
+    if request.args.get('format') == 'dg':
+        try:
+            validate(instance=payload, schema=dataguid_schema)
+    
+        except ValidationError as err:
+            return Response(
+                    status = 400,
+                    response = json.dumps({
+                        'status': 400,
+                        'message': 'Bad Payload',
+                        'validationError': str(err)
+                        })
+                    )
+
+        dataguid = Dataguid(dg_json=payload)
+        dataguid.to_schema()
+        return dataguid.post_indexd(user)
+
+    else: 
+        try:
+            validate(payload, dataguid_schema_org)
+
+        except ValidationError as err:
+          return Response(
+                    status = 400,
+                    response = json.dumps({
+                        'status': 400,
+                        'message': 'Bad Payload',
+                        'validationError': str(err)
+                        })
+                    )
 
 
-    dataguid = Dataguid(schema_json=payload)
-    dataguid.to_dataguid()
-    return dataguid.post_cache()
+        dataguid = Dataguid(schema_json=payload)
+        dataguid.to_dataguid()
+        return dataguid.post_indexd(user)
 
 
 @app.route('/dataguid:/<path:uuid>', methods = ['DELETE'])
 @globus_auth
 def DeleteDataguid(uuid, user): 
     dataguid = Dataguid(did=uuid)
-    return dataguid.delete_cache()
+    return dataguid.delete_indexd(request.args.get('rev'))
+
+
+@app.route('/dataguid:/<path:uuid>', methods = ['PUT'])
+@globus_auth
+def UpdateDataguid(uuid, user): 
+    _format = request.args.get('format')
+    payload = json.loads(request.data)
+
+
+    rev = request.args.get('rev')
+    if rev is None:
+        return Response(
+                status=400,
+                response = json.dumps({
+                    '@id': uuid,
+                    'status': 400,
+                    'message': 'Must specify revision for dataguid to be updated'
+                    })
+                )
+
+
+    if _format == 'dg':
+        try:
+            validate(instance=payload, schema=dataguid_schema)
+    
+        except ValidationError as err:
+            return Response(
+                    status = 400,
+                    response = json.dumps({
+                        'status': 400,
+                        'message': 'Bad Payload',
+                        'validationError': str(err)
+                        })
+                    )
+
+        dataguid = Dataguid(did=uuid, dg_json=payload)
+        dataguid.to_schema()
+        return dataguid.update_indexd(user, rev)
+
+    else: 
+        try:
+            validate(payload, dataguid_schema_org)
+
+        except ValidationError as err:
+            return Response(
+                    status = 400,
+                    response = json.dumps({
+                        'status': 400,
+                        'message': 'Bad Payload',
+                        'validationError': str(err)
+                        })
+                    )
+
+
+        dataguid = Dataguid(did = uuid,schema_json=payload)
+        dataguid.to_dataguid()
+        return dataguid.update_indexd(user, rev)
 
 
 @app.route('/dataguid:/<path:uuid>', methods = ['GET'])
 def GetDataguid(uuid): 
     content_type = request.accept_mimetypes.best_match(['text/html', 'application/json', 'application/ld+json'])
     dataguid = Dataguid(did=uuid)
-    return dataguid.fetch(content_type, request.args.get('format', 'schema.org'))
+    return dataguid.fetch_indexd(content_type, request.args.get('format', 'schema.org'))
   
 
 ##############################

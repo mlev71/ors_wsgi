@@ -6,10 +6,27 @@ import re, requests, os, json
 from neo4j.v1 import GraphDatabase
 import neo4j.v1
 
+from app.components.models.auth import UserNode
+from app.components.models.identifiers import (DataguidRevision, DataguidMetadata, 
+        DataguidNode, Checksum, Download)
+
 NEO_URI = "".join(["bolt://",os.environ.get('NEO_URL', 'localhost'), ":7687"])
 NEO_USER = os.environ.get('NEO_USER', 'neo4j')
 NEO_PASSWORD = os.environ.get('NEO_PASSWORD', 'localtest')
+
+
+from neomodel import config
+from os import environ
+
+NEO_PASSWORD = environ.get('NEO_PASSWORD', '')
+NEO_URL = environ.get('NEO_URL', '')
+config.DATABASE_URL = 'bolt://neo4j:'+ NEO_PASSWORD +'@'+ NEO_URL +':7687'
+
+
+
+
 REDIS_URL = os.environ.get('REDIS_URL', 'redis://localhost:6379')
+
 DATACITE_URL = os.environ.get('DATACITE_URL', 'https://mds.test.datacite.org')
 
 celery = Celery(
@@ -63,6 +80,81 @@ def delete_task(target, user, password):
     return {'response': response.content.decode('utf-8')}
 
 
+@celery.task(name='put_dataguid')
+def put_dataguid(UserEmail, did, baseId, rev, schemaJson, dgJson):
+    user = UserNode.nodes.get_or_none(email=UserEmail)
+
+
+    dg = DataguidNode.nodes.get_or_none(guid=did)
+
+    if dg is None:
+        dg = DataguidNode(guid=did, baseId=baseId)
+        dg.save()
+
+
+    metadata = DataguidMetadata(
+            schemaJson = json.dumps(schemaJson), 
+            dgJson = json.dumps(dgJson) 
+            )
+
+    metadata.save()
+
+    revision = DataguidRevision(
+            rev = rev
+            )
+    revision.save()
+
+    dg.hasRevision.connect(revision)
+    dg.mintedBy.connect(user)
+
+
+    revision.hasMetadata.connect(metadata)
+
+    # create checksum nodes
+    checksums = [ 
+            Checksum(
+                Method=method, 
+                Value=value
+                ).save()
+            for method, value in dgJson.get('hashes').items() if value is not None]
+
+    for cs_node in checksums:
+        revision.hasChecksum.connect(cs_node)
+
+    # create download nodes
+    downloads = [ 
+            Download(
+                url=dl, 
+                contentSize=schemaJson.get('contentSize'), 
+                fileFormat=schemaJson.get('fileFormat') 
+                ).save()
+            for dl in schemaJson.get('contentUrl')]
+
+    for dl_node in downloads:
+        revision.hasDownload.connect(dl_node)
+
+    
+    revision.save()
+    dg.save()
+
+
+
+@celery.task(name='delete_dataguid')
+def delete_dataguid(did, rev):
+    dg = DataguidNode.nodes.get_or_none(guid=did)
+    rev = DataguidRevision.nodes.get_or_none(rev = did)
+
+    if rev is not None:
+        for metadata in rev.hasMetadata.all():
+            metadata.delete()
+        for checksum in rev.hasChecksum.all():
+            checksum.delete()
+        for download in rev.hasDownload.all():
+            download.delete()
+        rev.delete()
+    
+    if dg is not None:
+        dg.delete()
 
 #################
 # DATACITE TASKS# 
