@@ -464,12 +464,11 @@ class Doi(CoreMetadata):
 
         # register metadata
         # - MUST HAPPEN FIRST
-        xml_payload = convertDoiToXml(self.data)
 
         create_metadata = requests.put(
                 url = DATACITE_URL + "/metadata/" + doi,
                 auth = self.auth,
-                data = xml_payload,
+                data = json.dumps(self.data),
                 headers = {'Content-Type':'application/xml;charset=UTF-8'},
                 )
 
@@ -1351,10 +1350,8 @@ doi_schema = {
         'publisher': {
             'oneOf': [
                 {'type'}
-
             ]
-
-        }
+        },
         'datePublished': {
             'type': 'string'
         },
