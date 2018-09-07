@@ -1,4 +1,4 @@
-#!/usr/bin/env python3 
+#!/usr/bin/env python3
 from flask import Flask, render_template, request, Response, session, redirect, url_for
 
 import globus_sdk
@@ -23,7 +23,7 @@ jinja_env = jinja2.Environment(
         loader=jinja2.PackageLoader('app','templates')
     )
 
-app = Flask('ors', 
+app = Flask('ors',
         template_folder='app/templates',
         static_folder= 'app/static'
         )
@@ -32,8 +32,7 @@ app = Flask('ors',
 app.config['DEBUG'] = True
 app.config['TESTING'] = True
 app.config['SECRET_KEY'] = 'kYhD3X9@8Z}FeX2'
-
-LOGIN_URL = os.environ.get('LOGIN', 'https://ors.datacite.org/login')
+app.config['SERVER_NAME'] = os.environ.get('URL')
 
 # configure bugsnag
 bugsnag.configure(
@@ -63,10 +62,10 @@ bugsnag.notify(Exception('Test Error on Starting Application'))
 @globus_auth
 def home():
     ''' Render Homepage with Content Information'''
-    # count the number of downloads, datasets, and 
+    # count the number of downloads, datasets, and
 
     # return all data dictionaries
-    
+
     # list all dataset guids
 
     return render_template('home.html')
@@ -74,22 +73,23 @@ def home():
 
 @app.route('/docs', methods = ['GET'])
 def docs():
-   return render_template('docs.html') 
+   return render_template('docs.html')
 
 
 @app.route('/login')
 def login():
-    """ Run Oauth2 flow with globus auth 
-    """ 
+    """ Run Oauth2 flow with globus auth
+    """
     client = globus_sdk.ConfidentialAppAuthClient(CLIENT_ID, CLIENT_SECRET)
 
 
+    login_uri = url_for('login', _external=True)
     client.oauth2_start_flow(
-            redirect_uri= LOGIN_URL, 
+            redirect_uri= login_uri,
             refresh_tokens=True)
 
     if 'code' not in request.args:
-        authorize_url = client.oauth2_get_authorize_url() 
+        authorize_url = client.oauth2_get_authorize_url()
         return redirect(authorize_url)
 
     else:
@@ -101,11 +101,11 @@ def login():
                     response = "Invalid Credentials: Cannot Grant Tokens for an old Authorization Code",
                     status = 401
                     )
-        
+
         access_token = tokens.data.get('access_token')
         refresh_token = tokens.data.get('refresh_token')
         oidc_token = tokens.decode_id_token()
-  
+
 
         session.update(
                 access_token = access_token,
@@ -129,9 +129,9 @@ def logout():
     '''
     client = globus_sdk.ConfidentialAppAuthClient(CLIENT_ID, CLIENT_SECRET)
 
- 
+
     access_token = session.get('access_token',
-            request.args.get('code', 
+            request.args.get('code',
                 request.headers.get('Authorization')
                 )
             )
@@ -139,7 +139,7 @@ def logout():
     if access_token is None:
         return "Please Provide an Access Token to Logout"
 
-    globus_login = GlobusLoginNode.nodes.get_or_none(accessToken=access_token) 
+    globus_login = GlobusLoginNode.nodes.get_or_none(accessToken=access_token)
     if globus_login is not None:
         globus_details = globus_login.inspected
         globus_identities = globus_login.identities
@@ -150,7 +150,7 @@ def logout():
             identity.delete()
 
         globus_login.delete()
- 
+
     # clear all identities
     client.oauth2_revoke_token(access_token)
 
@@ -160,15 +160,14 @@ def logout():
         oidc_token = None
             )
 
-    
-    #redirect_uri = url_for('home', _external=True)
-    redirect_uri = 'https://localhost/'
+
+    logout_uri = url_for('home', _external=True)
 
     # call globus to invalidate tokens
     globus_logout_url = (
         'https://auth.globus.org/v2/web/logout' +
         '?client={}'.format(CLIENT_ID) +
-        '&redirect_uri={}'.format(redirect_uri) +
+        '&redirect_uri={}'.format(logout_uri) +
         '&redirect_name=Object Registration Service'
         )
 
@@ -182,20 +181,20 @@ def register():
 
     if request.method == 'DELETE':
         auth = request.authorization
-                
+
         if not auth or not (auth.username == ADMIN_USERNAME and auth.password == ADMIN_PASSWORD):
             return Response(
                     'Could not verify admin credentials.\n'
                     'You have to login with proper credentials', 401,
                     {'WWW-Authenticate': 'Basic realm="Login Required"'}
                     )
-         
+
         payload = json.loads(request.data)
         if payload.get('email') is not None and payload.get('firstName') is not None and payload.get('lastName') is not None:
             del_user = UserNode.nodes.get_or_none(
                 email = payload.get('email'),
                 firstName = payload.get('firstName'),
-                lastName = payload.get('lastName') 
+                lastName = payload.get('lastName')
                 )
             if del_user is not None:
                 del_user.delete()
@@ -205,7 +204,7 @@ def register():
                         mimetype = 'application/json'
                         )
             else:
-                return Response( 
+                return Response(
                         status = 404,
                         response = json.dumps({'nonExistantUser': payload}),
                         mimetype = 'application/json'
@@ -214,17 +213,17 @@ def register():
             return "Please Describe the User to Delete in the JSON request body"
 
 
-    # add a user to the database 
+    # add a user to the database
     if request.method == 'POST':
         auth = request.authorization
-                
+
         if not auth or not (auth.username == ADMIN_USERNAME and auth.password == ADMIN_PASSWORD):
             return Response(
                     'Could not verify admin credentials.\n'
                     'You have to login with proper credentials', 401,
                     {'WWW-Authenticate': 'Basic realm="Login Required"'}
                     )
-                
+
         payload = json.loads(request.data)
 
         if type(payload) == dict:
@@ -252,9 +251,9 @@ def register():
 
                 if user is not None:
                     user.firstName = payload.get('firstName')
-                    user.lastName = payload.get('lastName') 
+                    user.lastName = payload.get('lastName')
                     user.team.connect(team)
-                    
+
                     user.save()
 
                     return Response(
@@ -269,13 +268,13 @@ def register():
 
 
         else:
-            return Response( 
+            return Response(
                     status = 400,
                     response =json.dumps({'badPayload':payload}),
                     mimetype= 'application/json'
                     )
-            
-    
+
+
     if request.method == 'GET':
         return "Contact max.adam.levinson@gmail.com to be placed on whitelist"
 
@@ -323,8 +322,8 @@ def MintArk(user):
                 )
 
     try:
-        ark = Ark(data=payload)   
-    
+        ark = Ark(data=payload)
+
     except MissingKeys as err:
         return err.output()
 
@@ -346,7 +345,7 @@ def DeleteArk(Shoulder, Id, user):
 @app.route('/ark:/<path:Shoulder>/<path:Id>', methods = ['GET'])
 def GetArk(Shoulder, Id):
     guid = 'ark:/'+Shoulder+'/'+Id
- 
+
     content_type = request.accept_mimetypes.best_match(['text/html', 'application/json', 'application/ld+json'])
 
     if Shoulder == '57799':
@@ -369,13 +368,13 @@ def GetArk(Shoulder, Id):
             return err.html_response()
         else:
             return err.json_response()
-    
-    
+
+
     if content_type == 'application/json' or content_type == 'application/ld+json':
         return Response(
-                status = 200, 
+                status = 200,
                 response = json.dumps(payload))
-    
+
     else:
         if profile == 'doi':
             return render_template('Doi.html', data = payload)
@@ -390,7 +389,7 @@ def GetArk(Shoulder, Id):
 
 @app.route('/doi/put', methods = ['PUT'])
 @globus_auth
-def MintDoi(user): 
+def MintDoi(user):
     payload = json.loads(request.data)
 
     try:
@@ -408,7 +407,7 @@ def MintDoi(user):
 def DeleteDoi(Shoulder, Id, user):
     GUID = Shoulder +'/'+ Id
     doi = Doi(guid=GUID)
-    
+
     response_dict = doi.delete_api()
 
     response_message = {
@@ -422,7 +421,7 @@ def DeleteDoi(Shoulder, Id, user):
 
 
 @app.route('/doi:/<path:Shoulder>/<path:Id>', methods = ['GET'])
-def GetDoi(Shoulder, Id): 
+def GetDoi(Shoulder, Id):
     content_type = request.accept_mimetypes.best_match(['text/html', 'application/json', 'application/ld+json'])
     GUID = Shoulder +'/'+ Id
     doi = Doi(guid=GUID)
@@ -440,7 +439,7 @@ def GetDoi(Shoulder, Id):
 ############################################
 @app.route('/dataguid/put', methods = ['PUT'])
 @globus_auth
-def MintDataguid(user): 
+def MintDataguid(user):
 
     try:
         payload = json.loads(request.data.decode('utf-8'))
@@ -461,7 +460,7 @@ def MintDataguid(user):
     if request.args.get('format') == 'dg':
         try:
             validate(instance=payload, schema=dataguid_schema)
-    
+
         except ValidationError as err:
             return Response(
                     status = 400,
@@ -476,7 +475,7 @@ def MintDataguid(user):
         dataguid.to_schema()
         return dataguid.post_indexd(user)
 
-    else: 
+    else:
         try:
             validate(payload, dataguid_schema_org)
 
@@ -498,14 +497,14 @@ def MintDataguid(user):
 
 @app.route('/dataguid:/<path:uuid>', methods = ['DELETE'])
 @globus_auth
-def DeleteDataguid(uuid, user): 
+def DeleteDataguid(uuid, user):
     dataguid = Dataguid(did=uuid)
     return dataguid.delete_indexd(request.args.get('rev'))
 
 
 @app.route('/dataguid:/<path:uuid>', methods = ['PUT'])
 @globus_auth
-def UpdateDataguid(uuid, user): 
+def UpdateDataguid(uuid, user):
     _format = request.args.get('format')
     payload = json.loads(request.data)
 
@@ -525,7 +524,7 @@ def UpdateDataguid(uuid, user):
     if _format == 'dg':
         try:
             validate(instance=payload, schema=dataguid_schema)
-    
+
         except ValidationError as err:
             return Response(
                     status = 400,
@@ -540,7 +539,7 @@ def UpdateDataguid(uuid, user):
         dataguid.to_schema()
         return dataguid.update_indexd(user, rev)
 
-    else: 
+    else:
         try:
             validate(payload, dataguid_schema_org)
 
@@ -561,11 +560,11 @@ def UpdateDataguid(uuid, user):
 
 
 @app.route('/dataguid:/<path:uuid>', methods = ['GET'])
-def GetDataguid(uuid): 
+def GetDataguid(uuid):
     content_type = request.accept_mimetypes.best_match(['text/html', 'application/json', 'application/ld+json'])
     dataguid = Dataguid(did=uuid)
     return dataguid.fetch_indexd(content_type, request.args.get('format', 'schema.org'))
-  
+
 
 ##############################
 #  Multipule Identifiers     #
@@ -578,4 +577,3 @@ if __name__=="__main__":
 
     full_app = BugsnagMiddleware(app)
     full_app.run(use_debugger= True, debug=app.debug, use_reloader=True, host='0.0.0.0')
-
