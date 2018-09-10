@@ -457,9 +457,24 @@ class Doi(CoreMetadata):
         '''
         response = {}
         if self.data.get('@id') is not None:
-            doi = self.data.get('@id').replace('doi:/','')
+            doi = self.data.get('@id').replace('doi:/','').replace('https://doi.org/', '')
         else:
-            doi = '10.25489/'
+            # must randomly assign doi when posting in JSON-LD
+            doi = '10.25489/'+''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
+            self.data['@id'] = 'https://doi.org/'+doi
+
+        # validate payload
+        try:
+            validate(instance=self.data, schema=doi_schema)
+        except ValidationError as err:
+            return Response(
+                      status = 400,
+                      response = json.dumps({
+                          'status': 400,
+                          'message': 'Bad Payload',
+                          'validationError': str(err)
+                          })
+                      )
 
 
         # register metadata
@@ -469,13 +484,11 @@ class Doi(CoreMetadata):
                 url = DATACITE_URL + "/metadata/" + doi,
                 auth = self.auth,
                 data = json.dumps(self.data),
-                headers = {'Content-Type':'application/xml;charset=UTF-8'},
+                headers = {'Content-Type': 'application/vnd.schemaorg.ld+json;charset=utf-8'},
                 )
 
         try:
             assert create_metadata.status_code == 201
-            doi = re.sub("OK |\(|\)", "", create_metadata.content.decode('utf-8'))
-            landing_page = self.data.get('url', 'https://ors.datacite.org/doi:/'+doi)
 
         except AssertionError:
             return Response(
@@ -492,13 +505,14 @@ class Doi(CoreMetadata):
 
                     )
 
-
         response.update({
             'metadataRegistration': create_metadata.content.decode('utf-8')
             })
 
 
         # reserve doi
+        landing_page = self.data.get('url', 'https://ors.datacite.org/doi:/'+doi)
+
         reserve_doi = requests.put(
                 url = DATACITE_URL + '/doi/' + doi,
                 auth = self.auth,
