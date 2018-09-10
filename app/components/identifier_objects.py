@@ -454,6 +454,9 @@ class Doi(object):
         self.data = kwargs.get('data')
         self.status = kwargs.get('status')
 
+        if self.data is not None:
+            assert isinstance(self.data, dict)
+
     def post_api(self):
         ''' Submit XML payload to Datacite
         '''
@@ -563,7 +566,12 @@ class Doi(object):
                             'mediaRegistration': single_media_request.content.decode('utf-8')
                             })
 
-        return response
+
+        return Response(
+            status = 200,
+            response = json.dumps(response),
+            mimetype = 'application/json'
+            )
 
 
     def fetch(self, content_type):
@@ -700,17 +708,45 @@ class Doi(object):
     def delete_api(self):
         doi = self.guid
 
-        delete_response = requests.delete(
+        delete_metadata = requests.delete(
                 url = self.endpoint+'/metadata/'+doi,
-                auth = requests.auth.HTTPBasicAuth(self.auth[0], self.auth[1])
+                auth = self.auth
                 )
+        metadata_status = delete_metadata.status_code
+
+        delete_doi = requests.delete(
+                url = self.endpoint+'/doi/'+doi,
+                auth = self.auth
+            )
+        doi_status = delete_doi.status_code
 
         response_dict = {
-                'status_code': delete_response.status_code,
-                'content': delete_response.content.decode('utf-8')
+                '@id': self.guid,
+                'metadataDeletion': {
+                    'status': delete_metadata.status_code,
+                    'message': delete_metadata.content.decode('utf-8')
+                },
+                'doiDeletion': {
+                    'status': delete_doi.status_code,
+                    'message': delete_doi.content.decode('utf-8'),
                 }
-        return response_dict
+                }
 
+        if metadata_status == 200 and doi_status == 204:
+            full_status = 204
+            response_dict['message'] = 'Metadata record and doi reservation deleted'
+        elif metadata_status == 200 or doi_status == 204:
+            full_status = 207
+            response_dict['message'] = 'Partial Success, doi may not be deleted if not minted with "draft" status'
+        else:
+            full_status = 400
+            response_dict['message'] = 'Error; Metadata record and doi reservation unable to be deleted'
+
+        return Response(
+            status = full_status,
+            response = json.dumps(response_dict),
+            mimetype = 'application/json'
+            )
 
 
 class Minid(object):
