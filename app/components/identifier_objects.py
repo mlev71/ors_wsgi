@@ -445,14 +445,14 @@ class Ark(CoreMetadata):
 
 
 
-class Doi(CoreMetadata):
-    required_keys = set(['name', 'author','datePublished'])
-    optional_keys = set(['includedInDataCatalog', 'dateCreated', 'additionalType', 'description',
-                        'keywords', 'license', 'version', 'citation', 'isBasedOn',
-                        'predecessorOf', 'successorOf', 'hasPart', 'isPartOf', 'funder',
-                        'contentSize', 'fileFormat', 'contentUrl'])
+class Doi(object):
     endpoint = DATACITE_URL
     auth = requests.auth.HTTPBasicAuth(DATACITE_USER, DATACITE_PASSWORD)
+
+    def __init__(self, *args, **kwargs):
+        self.guid = kwargs.get('guid')
+        self.data = kwargs.get('data')
+        self.status = kwargs.get('status')
 
     def post_api(self):
         ''' Submit XML payload to Datacite
