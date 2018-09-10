@@ -5,6 +5,8 @@ todo.txt
 *.swp
 *.pyc
 *.p
-.DS_STORE
+*.DS_STORE
+*.ipynb_checkpoints
+*.ipynb
 *.swo
 *.swn
