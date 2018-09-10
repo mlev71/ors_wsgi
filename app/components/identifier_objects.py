@@ -20,7 +20,7 @@ jinja_env = jinja2.Environment(
         loader=jinja2.PackageLoader('app','templates')
     )
 
-from app.components.cel import delete_task, put_dataguid, delete_dataguid
+from app.components.cel import  *
 from app.components.ezid_anvl import *
 from app.components.mds_xml import *
 
@@ -110,6 +110,7 @@ class Ark(CoreMetadata):
 
         self.anvl = ingestAnvl(api_response.content.decode('utf-8'))
 
+
     def to_json_ld(self):
         ''' Parse ANVL and return in JSON-LD
         '''
@@ -187,6 +188,7 @@ class Ark(CoreMetadata):
 
         return json_ld, profile
 
+
     def delete_api(self):
         ''' Delete Ark from EZID
         '''
@@ -195,6 +197,9 @@ class Ark(CoreMetadata):
                 auth = requests.auth.HTTPBasicAuth(self.auth[0], self.auth[1]),
                 url="https://ezid.cdlib.org/id/"+self.guid,
                 )
+
+        # submit delete task to celery
+        delete_ark.apply_async(kwargs={'guid': self.guid})
 
 
         if ezid_delete.status_code == 200:
@@ -240,7 +245,7 @@ class Ark(CoreMetadata):
                     mimetype='application/json')
 
 
-    def post_api(self, status='reserved'):
+    def post_api(self, user, status='reserved'):
         ''' Interface for minting ARK identifiers '''
         payload = profileFormat(flatten(self.data))
 
@@ -289,6 +294,14 @@ class Ark(CoreMetadata):
         ezid_identifier = ezid_response.replace('success: ', '').replace('error: ', '')
 
         identifier = self.data.get('@id', ezid_identifier)
+
+        # create neo representation with task queue
+        put_ark.apply_async(kwargs={
+            'UserEmail': user.email,
+            'guid': identifier,
+            'status':status,
+            'schemaJson': self.data
+            })
 
 
         if ezid_status == 200 or ezid_status == 201:
@@ -417,12 +430,6 @@ class Ark(CoreMetadata):
                                         }
                                     })
 
-
-
-
-
-
-
                 return Response(
                     status = response_message.get('code'),
                     response = json.dumps(response_message),
@@ -457,7 +464,7 @@ class Doi(object):
         if self.data is not None:
             assert isinstance(self.data, dict)
 
-    def post_api(self):
+    def post_api(self, user):
         ''' Submit XML payload to Datacite
         '''
         response = {}
@@ -481,10 +488,7 @@ class Doi(object):
                           })
                       )
 
-
-        # register metadata
-        # - MUST HAPPEN FIRST
-
+        # register metadata- MUST HAPPEN FIRST
         create_metadata = requests.put(
                 url = DATACITE_URL + "/metadata/" + doi,
                 auth = self.auth,
@@ -510,27 +514,34 @@ class Doi(object):
 
                     )
 
+
+        put_doi.apply_async(kwargs = {
+            'UserEmail': user.email,
+            'guid': doi,
+            'status': self.status,
+            'schemaJson': self.data
+        })
+
+
         response.update({
             'metadataRegistration': create_metadata.content.decode('utf-8')
             })
 
+        if self.status!='draft':
+            # reserve doi
+            landing_page = self.data.get('url', 'https://ors.datacite.org/doi:/'+doi)
 
-        # reserve doi
-        landing_page = self.data.get('url', 'https://ors.datacite.org/doi:/'+doi)
-
-        reserve_doi = requests.put(
+            reserve_doi = requests.put(
                 url = DATACITE_URL + '/doi/' + doi,
                 auth = self.auth,
                 data = "doi="+doi+"\nurl="+landing_page,
                 )
 
 
-        response.update({
-            'doiReservation': reserve_doi.content.decode('utf-8')
-            })
+            response.update({
+                'doiReservation': reserve_doi.content.decode('utf-8')
+                })
 
-
-        #assert create_metadata.status_code == 201
 
         # register media
         contentUrl = self.data.get('contentUrl')
@@ -675,10 +686,6 @@ class Doi(object):
                         )
 
 
-
-
-
-
     def fetch_works(self):
         works_response = requests.get(url = 'https://api.datacite.org/works/'+self.guid)
 
@@ -714,36 +721,44 @@ class Doi(object):
                 )
         metadata_status = delete_metadata.status_code
 
-        delete_doi = requests.delete(
-                url = self.endpoint+'/doi/'+doi,
-                auth = self.auth
-            )
-        doi_status = delete_doi.status_code
+        delete_doi.apply_async(
+            kwargs = {
+                'guid': doi
+                })
+
+        # Not in MDS Production Yet
+        #delete_doi = requests.delete(
+        #        url = self.endpoint+'/doi/'+doi,
+        #        auth = self.auth
+        #    )
+        #doi_status = delete_doi.status_code
 
         response_dict = {
                 '@id': self.guid,
                 'metadataDeletion': {
                     'status': delete_metadata.status_code,
                     'message': delete_metadata.content.decode('utf-8')
-                },
-                'doiDeletion': {
-                    'status': delete_doi.status_code,
-                    'message': delete_doi.content.decode('utf-8'),
                 }
                 }
 
-        if metadata_status == 200 and doi_status == 204:
-            full_status = 204
-            response_dict['message'] = 'Metadata record and doi reservation deleted'
-        elif metadata_status == 200 or doi_status == 204:
-            full_status = 207
-            response_dict['message'] = 'Partial Success, doi may not be deleted if not minted with "draft" status'
-        else:
-            full_status = 400
-            response_dict['message'] = 'Error; Metadata record and doi reservation unable to be deleted'
+                #'doiDeletion': {
+                #    'status': delete_doi.status_code,
+                #    'message': delete_doi.content.decode('utf-8'),
+                #}
+                #}
+
+        #if metadata_status == 200 and doi_status == 204:
+        #    full_status = 204
+        #    response_dict['message'] = 'Metadata record and doi reservation deleted'
+        #elif metadata_status == 200 or doi_status == 204:
+        #    full_status = 207
+        #    response_dict['message'] = 'Partial Success, doi may not be deleted if not minted with "draft" status'
+        #else:
+        #    full_status = 400
+        #    response_dict['message'] = 'Error; Metadata record and doi reservation unable to be deleted'
 
         return Response(
-            status = full_status,
+            status = metadata_status,
             response = json.dumps(response_dict),
             mimetype = 'application/json'
             )
@@ -974,8 +989,7 @@ class Dataguid(object):
                     did = did,
                     baseId = dg.get('baseid'),
                     rev = dg.get('rev'),
-                    schemaJson = self.schema_json,
-                    dgJson = self.dg_json,
+                    schemaJson = self.schema_json
                     )
 
             return Response(
@@ -1019,8 +1033,7 @@ class Dataguid(object):
                 did = did,
                 baseId = dg.get('baseid'),
                 rev = dg.get('rev'),
-                schemaJson = self.schema_json,
-                dgJson = self.dg_json,
+                schemaJson = self.schema_json
                 )
 
         return Response(

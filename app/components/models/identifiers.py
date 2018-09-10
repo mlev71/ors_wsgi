@@ -13,8 +13,8 @@ from neomodel import (config, cardinality,
 ############################
 
 class DataguidNode(StructuredNode):
-    __label__ = 'Dataguid'
-    guid = StringProperty(required=True)
+    __label__ = 'Identifier:Dataguid'
+    guid = StringProperty(required=True, unique_index=True)
     baseId = StringProperty(required=True)
 
     hasRevision = RelationshipTo('DataguidRevision', 'hasRevision')
@@ -25,14 +25,14 @@ class DataguidRevision(StructuredNode):
     rev = StringProperty(required=True)
     dateCreated = DateTimeProperty(default_now=True)
 
-    hasMetadata = RelationshipTo('DataguidMetadata', 'hasMetadata', cardinality = cardinality.One)
+    hasMetadata = RelationshipTo('Metadata', 'hasMetadata', cardinality = cardinality.One)
     hasChecksum = RelationshipTo('Checksum', 'hasChecksum')
     hasDownload = RelationshipTo('Download', 'hasDownload')
 
 
 class ArkNode(StructuredNode):
-    __label__ = 'Identifier:Ark'
-    guid = StringProperty(required=True)
+    guid = StringProperty(required=True, unique_index=True)
+    status = StringProperty()
 
     hasMetadata = RelationshipTo('Metadata', 'hasMetadata', cardinality = cardinality.One)
     hasChecksum = RelationshipTo('Checksum', 'hasChecksum')
@@ -42,8 +42,8 @@ class ArkNode(StructuredNode):
 
 
 class DoiNode(StructuredNode):
-    __label__ = 'Identifier:Doi'
-    guid = StringProperty(required=True)
+    guid = StringProperty(required=True, unique_index=True)
+    status = StringProperty()
 
     hasMetadata = RelationshipTo('Metadata', 'hasMetadata', cardinality = cardinality.One)
     hasChecksum = RelationshipTo('Checksum', 'hasChecksum')
@@ -51,11 +51,8 @@ class DoiNode(StructuredNode):
     mintedBy = RelationshipTo('UserNode', 'mintedBy')
 
 
-class DataguidMetadata(StructuredNode):
-    __label__ = 'Metadata'
+class Metadata(StructuredNode):
     schemaJson = JSONProperty(required=True)
-    dgJson = JSONProperty(required=True)
-
 
 
 class Checksum(StructuredNode):
@@ -67,11 +64,6 @@ class Download(StructuredNode):
     fileFormat = StringProperty()
     url = StringProperty(required = True)
     contentSize = StringProperty()
-     
+
     CLOUDS = {'Azure': 'Azure', 'Google Public Cloud': 'GPC', 'Amazon Web Services': 'AWS'}
     cloud = StringProperty(choices=CLOUDS)
-
-
-
-
-

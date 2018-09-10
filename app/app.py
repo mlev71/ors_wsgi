@@ -326,7 +326,7 @@ def MintArk(user):
         return err.output()
 
     status = request.args.get('status', 'reserved')
-    api_response = ark.post_api(status)
+    api_response = ark.post_api(user=user, status=status)
 
     return api_response
 
@@ -389,15 +389,8 @@ def GetArk(Shoulder, Id):
 @globus_auth
 def MintDoi(user):
     payload = json.loads(request.data)
-
-    try:
-        obj = Doi(data=payload)
-
-    except MissingKeys as err:
-        return err.output()
-
-
-    return obj.post_api()
+    doi_obj = Doi(data=payload, status= request.args.get('status', 'draft'))
+    return doi_obj.post_api(user=user)
 
 
 @app.route('/doi:/<path:Shoulder>/<path:Id>', methods = ['DELETE'])
@@ -405,17 +398,7 @@ def MintDoi(user):
 def DeleteDoi(Shoulder, Id, user):
     GUID = Shoulder +'/'+ Id
     doi = Doi(guid=GUID)
-
-    response_dict = doi.delete_api()
-
-    response_message = {
-            "api": {"status_code": response_dict.get('status_code'), "message": response_dict.get('content')}
-                }
-
-    return Response(
-            status=204,
-            response = json.dumps(response_message)
-            )
+    return doi.delete_api()
 
 
 @app.route('/doi:/<path:Shoulder>/<path:Id>', methods = ['GET'])
