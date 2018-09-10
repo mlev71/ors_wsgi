@@ -3,6 +3,8 @@ import base64
 import json
 import re
 import os
+import string
+import random
 import jinja2
 import uuid
 
