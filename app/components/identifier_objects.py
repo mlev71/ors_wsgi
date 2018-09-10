@@ -1267,7 +1267,7 @@ doi_schema = {
     'title': 'Doi',
     'additionalProperties': False,
     'description': 'Schema.org Payload used to Create or Update a Datacite DOI',
-    'required': ['name', 'author', 'publisher', 'form', 'datePublished'],
+    'required': ['name', 'author', 'publisher', 'datePublished'],
     'type': 'object',
     'properties': {
         '@id': {'type': 'string'},
@@ -1349,8 +1349,16 @@ doi_schema = {
         },
         'publisher': {
             'oneOf': [
-                {'type'}
+                {'type': 'object',
+                 'properties': {
+                     '@id': {'type': 'string'},
+                     '@type': {'enum': ['Person', 'Organization']},
+                     'name': {'type': 'string'}
+                 }
+                }
+
             ]
+
         },
         'datePublished': {
             'type': 'string'
@@ -1409,8 +1417,16 @@ doi_schema = {
             'type': 'string'
         },
         'contentUrl': {
-            'type': 'string',
-            'format': 'uri'
+            'oneOf': [
+                {
+                    'type': 'string',
+                    'format': 'uri'
+                },
+                {
+                    'type': 'array',
+                    'items': {'type': 'string', 'format': 'uri'}
+                }
+            ]
         },
          'isBasedOn': {
                 'anyOf': [
