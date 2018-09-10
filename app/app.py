@@ -32,7 +32,6 @@ app = Flask('ors',
 app.config['DEBUG'] = True
 app.config['TESTING'] = True
 app.config['SECRET_KEY'] = 'kYhD3X9@8Z}FeX2'
-app.config['SERVER_NAME'] = os.environ.get('SERVER_NAME')
 
 # configure bugsnag
 bugsnag.configure(
@@ -82,8 +81,7 @@ def login():
     """
     client = globus_sdk.ConfidentialAppAuthClient(CLIENT_ID, CLIENT_SECRET)
 
-
-    login_uri = url_for('login', _external=True)
+    login_uri = os.environ.get('ROOT_URL')+'/login'
     client.oauth2_start_flow(
             redirect_uri= login_uri,
             refresh_tokens=True)
@@ -161,7 +159,7 @@ def logout():
             )
 
 
-    logout_uri = url_for('home', _external=True)
+    logout_uri = os.environ.get('ROOT_URL')+'/home'
 
     # call globus to invalidate tokens
     globus_logout_url = (
