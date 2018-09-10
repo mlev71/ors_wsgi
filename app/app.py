@@ -14,7 +14,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 from app.components.cel import *
 from app.components.globus_auth import *
 from app.components.identifier_objects import *
-from app.components.neo_helpers import *
+from app.components.models import *
 
 
 import jinja2
@@ -280,16 +280,19 @@ def register():
 ##########################
 # Search Engine indexing #
 ##########################
-
-
 with open('app/dois.txt', 'r') as doi_list:
-    GTEX_DOIS = [ re.sub('doi.org/', 'ors.datacite.org/doi:/', doi) for doi in  doi_list.read().splitlines()]
+    GTEX_DOIS = [ re.sub('doi.org/', os.environ.get("ROOT_URL")+'/doi:/', doi) for doi in  doi_list.read().splitlines()]
 
 @app.route('/sitemap.xml', methods=['GET'])
 def sitemap():
     '''Generate sitemap.xml for all identifiers, list of urls and date modified'''
+    dois = [os.environ.get("ROOT_URL")+ 'doi:/'+doi.guid for doi in DoiNode.nodes.all()]
+    dataguids = [os.environ.get("ROOT_URL")+'dataguid:/'+dg.guid for dg in DataguidNode.nodes.all()]
+    arks = [os.environ.get("ROOT_URL")+ark.guid for ark in ArkNode.nodes.all()]
+    pages = dois+dataguids+arks+GTEX_DOIS
+
     template = jinja_env.get_template('sitemap_template.xml')
-    return template.render( pages=GTEX_DOIS)
+    return template.render(pages=pages)
 
 @app.route('/robots.txt', methods=['GET'])
 def robots():
