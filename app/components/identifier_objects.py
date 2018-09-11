@@ -61,40 +61,17 @@ mimetype = {
 #########################################################
 #                 Core Metadata Objects                 #
 #########################################################
-
-
-class CoreMetadata(object):
-    def __init__(self, *args, **kwargs):
-        '''Create Core metadata Object
-
-        If minting will have arguments data and options
-
-        Else will just pass guid, and attempt to delete self from api
-        '''
-
-
-        self.guid = kwargs.get('guid')
-
-        self.data = kwargs.get('data')
-        self.status = kwargs.get('status')
-
-        if self.status is not None:
-            assert self.status == 'reserved' or self.status == 'public'
-
-
-        if self.data is not None:
-            if not set(self.required_keys).issubset(set(self.data.keys())):
-                raise MissingKeys(self.data.keys(), self.required_keys)
-
-
-
-class Ark(CoreMetadata):
-    required_keys = set(['name','author', 'dateCreated'])
-    optional_keys = set(['@type', 'expires','includedInDataCatalog', 'contentUrl'])
+class Ark(object):
     endpoint = "https://ezid.cdlib.org/id/"
-    auth = (EZID_USER, EZID_PASSWORD)
+    auth = requests.auth.HTTPBasicAuth(EZID_USER, EZID_PASSWORD)
     useless_keys = ['success',  '_ownergroup', '_target', '_profile',
             '_status', '_export', '_updated', '_owner', '_created', 'context', 'id']
+
+
+    def __init__(self, *args, **kwargs):
+        self.guid = kwargs.get('guid')
+        self.data = kwargs.get('data')
+        self.status = kwargs.get('status')
 
 
     def fetch(self):
@@ -194,7 +171,7 @@ class Ark(CoreMetadata):
         '''
 
         ezid_delete = requests.delete(
-                auth = requests.auth.HTTPBasicAuth(self.auth[0], self.auth[1]),
+                auth = self.auth,
                 url="https://ezid.cdlib.org/id/"+self.guid,
                 )
 
@@ -262,7 +239,7 @@ class Ark(CoreMetadata):
             anvl_payload = outputAnvl(payload)
 
             mint_response = requests.post(
-                    auth = requests.auth.HTTPBasicAuth(self.auth[0], self.auth[1]),
+                    auth = self.auth,
                     url=target,
                     headers = {'Content-Type': 'text/plain; charset=UTF-8'},
                     data = anvl_payload
@@ -282,7 +259,7 @@ class Ark(CoreMetadata):
             anvl_payload = outputAnvl(payload)
 
             mint_response = requests.put(
-                auth = requests.auth.HTTPBasicAuth(self.auth[0], self.auth[1]),
+                auth = self.auth,
                 url=target,
                 headers = {'Content-Type': 'text/plain; charset=UTF-8'},
                 data = anvl_payload
@@ -331,7 +308,7 @@ class Ark(CoreMetadata):
                         })
 
 
-                task = delete_task.apply_async(
+                delete_task.apply_async(
                         (target, self.auth[0], self.auth[1]),
                         eta = parser.parse(expiration)
                         )
@@ -409,7 +386,7 @@ class Ark(CoreMetadata):
                         exp = datetime.datetime.now() - expiration_datetime
 
                         task = delete_task.apply_async(
-                                (target, self.auth[0], self.auth[1]),
+                                (target, EZID_USER, EZID_PASSWORD),
                                 eta = expiration_datetime
                                 )
 
@@ -1265,326 +1242,3 @@ class UnknownProfile400(BaseException):
     def html_response(self):
         template = jinja_env.get_template('IdentifierError.html')
         return template.render(data = self.response_message)
-
-
-#####################
-# Schema Validation #
-#####################
-
-dataguid_schema_org = {
-    '$schema': 'http://json-schema.org/schema#',
-    'title': 'Dataguid formatted in Schema.org',
-    'additionalProperties': False,
-    'description': 'Schema.org Format of a Dataguid',
-    'properties': {
-        '@context': {'enum': ['https://schema.org']},
-        '@type': {'enum': ['Dataset', 'DataCatalog', 'CreativeWork']},
-        '@id': {
-                'pattern': '^.*[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$',
-                'type': 'string'
-            },
-        'identifier': {
-            'type': 'array',
-            'uniqueItems': True,
-            'items': {
-                'anyOf': [
-                    {'type': 'object', 'properties': {
-                        "@value": {'type': 'string'},
-                        "@type": {'enum': ['PropertyValue']},
-                        "name": {'enum': ['md5', 'sha', 'sha256', 'sha512', 'crc', 'etag']}
-                        }
-                    },
-                {'type': 'string', 'pattern': '^.*[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$'}
-            ]},
-            'minItems': 1,
-        },
-        'url': {'type': 'string', 'format': 'uri'},
-        'name': {'type':'string'},
-        'contentUrl': {'type': 'array', 'items': {'type':'string', 'format': 'uri'}},
-        'version': {'type':'string'},
-        'contentSize': {
-            'oneOf': [
-                {'type': 'string'},
-                {'type': 'integer'}
-                ]
-            },
-        'author': {'oneOf': [
-            {'type': 'object', 'properties':{
-                '@type': {'type': 'string'},
-                'name': {'type': 'string'}
-            }},
-            {'type': 'string'},
-            {'type': 'array', 'items': {'anyOf': [
-                {'type': 'object',
-                 'properties':{
-                    '@type': {'type': 'string'},
-                    'name': {'type': 'string'}}
-                },
-                {'type': 'string'}
-            ]}}
-        ]},
-    },
-    'required': ['contentUrl', 'identifier', 'contentSize']
-    }
-
-doi_schema = {
-    '$schema': 'http://json-schema.org/schema#',
-    'title': 'Doi',
-    'additionalProperties': False,
-    'description': 'Schema.org Payload used to Create or Update a Datacite DOI',
-    'required': ['name', 'author', 'publisher', 'datePublished'],
-    'type': 'object',
-    'properties': {
-        '@id': {'type': 'string'},
-        '@context': {'enum': ['https://schema.org']},
-        '@type': {'enum': ['Dataset', 'CreativeWork', 'SoftwareSourceCode', 'SoftwareApplication', 'Collection', 'Report']},
-        'identifier': {
-            'type': 'array',
-            'uniqueItems': True,
-            'items': {
-                'anyOf': [
-                    {'type': 'object', 'properties': {
-                        "value": {'type': 'string'},
-                        "@type": {'enum': ['PropertyValue']},
-                        "name": {'enum': ['md5', 'sha', 'sha256', 'sha512', 'crc', 'etag']}
-                        }
-                    },
-                {'type': 'string'}
-            ]},
-            'minItems': 1,
-        },
-        'url': {
-            'type': 'string',
-            'format': 'uri'
-        },
-        'includedInDataCatalog': {
-                'oneOf': [
-                    {'type': 'string', 'description': 'Single Persistant Identifier'},
-                    {
-                        'type': 'object', 'properties': {
-                        '@id': {'type': 'string'},
-                        '@type': {'type': 'string'},
-                        'name': {'type': 'string'}
-                        }
-                    },
-                    {
-                        'type': 'array',
-                        'items': {
-                            'anyOf' : [
-                                 {'type': 'string', 'description': 'Single Persistant Identifier'},
-                                {
-                                'type': 'object', 'properties': {
-                                '@id': {'type': 'string'},
-                                '@type': {'type': 'string'},
-                                'name': {'type': 'string'}
-                                    }
-                                }]
-                        }
-                    }
-                ]
-        },
-        'name': {
-            'description': 'Name of the resource',
-            'type': 'string'
-        },
-        'author': {
-            'oneOf': [
-                    {
-                        'type':'object',
-                        'properties': {
-                            '@id': {'type':'string'},
-                            '@type': {'enum': ['Person', 'Organization']},
-                            'name': {'type': 'string'}
-                        }
-                    },
-                    {
-                        'type': 'array', 'items': {
-                            'anyOf': [{
-                        'type':'object',
-                        'properties': {
-                            '@id': {'type':'string'},
-                            '@type': {'enum': ['Person', 'Organization']},
-                            'name': {'type': 'string'}
-                            }
-                        }]
-                        }
-
-                    }
-            ]
-        },
-        'publisher': {
-            'oneOf': [
-                {'type': 'object',
-                 'properties': {
-                     '@id': {'type': 'string'},
-                     '@type': {'enum': ['Person', 'Organization']},
-                     'name': {'type': 'string'}
-                 }
-                }
-
-            ]
-
-        },
-        'datePublished': {
-            'type': 'string'
-        },
-        'dateCreated': {
-            'type': 'string'
-        },
-        'additionalType': {
-            'oneOf': [
-                    {'type': 'string'},
-                    {
-                        'type': 'array',
-                        'items': {'type': 'string'}
-                    }
-            ]
-        },
-        'description': {
-            'type': 'string'
-        },
-        'keywords': {
-            'oneOf': [
-                {'type': 'string'},
-                {'type': 'array',
-                'items': {'type': 'string'}}
-            ]
-        },
-        'license': {'type': 'string', 'format': 'uri'},
-        'version': {'type': 'string'},
-        'citation': {'type': 'string'},
-        'funder': {
-                'anyOf': [
-                    {'type': 'string'},
-                    {'type': 'object', 'properties':{
-                        '@id': {'type': 'string'},
-                        '@type': {'type': 'string'},
-                        'name': {'type': 'string'}
-                    }},
-                    {'type': 'array', 'items':
-                        {'anyOf': [
-                            {'type': 'string'},
-                            {'type': 'object', 'properties':{
-                            '@id': {'type': 'string'},
-                            '@type': {'type': 'string'},
-                            'name': {'type': 'string'}
-                            }}
-                        ]}
-
-
-                    }
-                ]
-        },
-        'contentSize': {
-            'type': 'string'
-        },
-        'fileFormat': {
-            'type': 'string'
-        },
-        'contentUrl': {
-            'oneOf': [
-                {
-                    'type': 'string',
-                    'format': 'uri'
-                },
-                {
-                    'type': 'array',
-                    'items': {'type': 'string', 'format': 'uri'}
-                }
-            ]
-        },
-         'isBasedOn': {
-                'anyOf': [
-                    {'type': 'string'},
-                    {'type': 'array',
-                    'items': {'type': 'string'}}
-                ]
-        },
-        'predecessorOf': {
-                'oneOf': [
-                    {'type': 'string'},
-                    {'type': 'array',
-                    'items': {'type': 'string'}}
-                ]
-        },
-        'successorOf': {
-                'anyOf': [
-                    {'type': 'string'},
-                    {'type': 'array',
-                    'items': {'type': 'string'}}
-                ]
-        },
-        'hasPart': {
-                'anyOf': [
-                    {'type': 'string'},
-                    {'type': 'array',
-                    'items': {'type': 'string'}}
-                ]
-        },
-        'isPartOf': {
-                'anyOf': [
-                    {'type': 'string'},
-                    {'type': 'array',
-                    'items': {'type': 'string'}}
-                ]
-        }
-    }
-}
-
-dataguid_schema = {
-    '$schema': 'http://json-schema.org/schema#',
-    'title': 'Dataguid',
-    'additionalProperties': False,
-    'description': 'Create a new index from hash & size',
-    'properties': {
-        'acl': {'items': {'type': 'string'}, 'type': 'array'},
-        'baseid': {
-            'pattern': '^.*[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$',
-            'type': 'string'
-        },
-        'did': {
-            'pattern': '^.*[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$',
-            'type': 'string'
-        },
-        'file_name': {
-            'description': 'optional file name of the object',
-            'type': 'string'
-        },
-        'form': {
-            'enum': ['object','container', 'multipart']
-        },
-        'hashes': {
-            'anyOf': [{'required': ['md5']},
-                      {'required': ['sha1']},
-                      {'required': ['sha256']},
-                      {'required': ['sha512']},
-                     {'required': ['crc']},
-                     {'required': ['etag']}],
-           'properties': {'crc': {'pattern': '^[0-9a-f]{8}$',
-                                  'type': 'string'},
-                          'etag': {'pattern': '^[0-9a-f]{32}(-\\d+)?$',
-                                   'type': 'string'},
-                          'md5': {'pattern': '^[0-9a-f]{32}$',
-                                  'type': 'string'},
-                          'sha1': {'pattern': '^[0-9a-f]{40}$',
-                                   'type': 'string'},
-                          'sha256': {'pattern': '^[0-9a-f]{64}$',
-                                     'type': 'string'},
-                          'sha512': {'pattern': '^[0-9a-f]{128}$',
-                                     'type': 'string'}},
-                   'type': 'object'},
-        'metadata': {'description': 'optional metadata of the object',
-                     'type': 'object'},
-        'size': {'description': 'Size of the data being indexed in bytes',
-                 'minimum': 0,
-                 'type': 'integer'},
-        'urls': {'items': {'type': 'string'},
-                 'type': 'array'},
-        'urls_metadata': {'description': 'optional urls metadata of the object',
-                          'type': 'object'},
-        'version': {'description': 'optional version string of the object',
-                    'type': 'string'}
-    },
-    'required': ['size', 'hashes', 'urls', 'form'],
-    'type': 'object'
-    }
