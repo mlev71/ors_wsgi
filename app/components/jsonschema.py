@@ -2,7 +2,7 @@ from jsonschema import validate
 
 dataguid_schema = {
     '$schema': 'http://json-schema.org/schema#',
-    'title': 'Dataguid'
+    'title': 'Dataguid',
     'additionalProperties': False,
     'description': 'Create a new index from hash & size',
     'properties': {

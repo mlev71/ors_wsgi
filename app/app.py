@@ -466,12 +466,12 @@ def MintDataguid(user):
     except:
         return Response(
                 status = 400,
-                response= request.data
                 response = json.dumps({
                     'status': 400,
                     'message': "Could not parse payload",
-                    'payload': request.data
-                    })
+                    'payload': request.data.decode('utf-8')
+                    }),
+                mimetype = 'application/json'
                 )
 
     if request.args.get('format') == 'dg':
