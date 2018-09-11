@@ -15,7 +15,7 @@ from app.components.cel import *
 from app.components.globus_auth import *
 from app.components.identifier_objects import *
 from app.components.models import *
-
+from app.components.jsonschema import *
 
 import jinja2
 
@@ -281,14 +281,14 @@ def register():
 # Search Engine indexing #
 ##########################
 with open('app/dois.txt', 'r') as doi_list:
-    GTEX_DOIS = [ re.sub('doi.org/', os.environ.get("ROOT_URL")+'/doi:/', doi) for doi in  doi_list.read().splitlines()]
+    GTEX_DOIS = [ re.sub('https://doi.org/', os.environ.get("ROOT_URL")+'/doi:/', doi) for doi in  doi_list.read().splitlines()]
 
 @app.route('/sitemap.xml', methods=['GET'])
 def sitemap():
     '''Generate sitemap.xml for all identifiers, list of urls and date modified'''
-    dois = [os.environ.get("ROOT_URL")+ 'doi:/'+doi.guid for doi in DoiNode.nodes.all()]
-    dataguids = [os.environ.get("ROOT_URL")+'dataguid:/'+dg.guid for dg in DataguidNode.nodes.all()]
-    arks = [os.environ.get("ROOT_URL")+ark.guid for ark in ArkNode.nodes.all()]
+    dois = [os.environ.get("ROOT_URL")+ '/doi:/'+doi.guid for doi in DoiNode.nodes.all()]
+    dataguids = [os.environ.get("ROOT_URL")+'/dataguid:/'+dg.guid for dg in DataguidNode.nodes.all()]
+    arks = [os.environ.get("ROOT_URL")+'/ark:'+ark.guid.replace('ark:','') for ark in ArkNode.nodes.all()]
     pages = dois+dataguids+arks+GTEX_DOIS
 
     template = jinja_env.get_template('sitemap_template.xml')
@@ -298,9 +298,6 @@ def sitemap():
 def robots():
     return app.send_static_file('robots.txt')
 
-
-
-
 ##########################################################
 #                        ARK                             #
 ##########################################################
@@ -308,6 +305,8 @@ def robots():
 @app.route('/ark/put', methods = ['PUT'])
 @globus_auth
 def MintArk(user):
+
+    # attempt to parse payload
     try:
         payload = json.loads(request.data.decode('utf-8'))
         assert isinstance(payload, dict)
@@ -322,12 +321,21 @@ def MintArk(user):
 
                 )
 
+    # validate payload structure
     try:
-        ark = Ark(data=payload)
+        validate(instance=payload, schema=ark_schema)
 
-    except MissingKeys as err:
-        return err.output()
+    except ValidationError as err:
+        return Response(
+                status = 400,
+                response = json.dumps({
+                    'status': 400,
+                    'message': 'Bad Payload',
+                    'validationError': str(err)
+                    })
+                )
 
+    ark = Ark(data=payload)
     status = request.args.get('status', 'reserved')
     api_response = ark.post_api(user=user, status=status)
 
@@ -391,7 +399,35 @@ def GetArk(Shoulder, Id):
 @app.route('/doi/put', methods = ['PUT'])
 @globus_auth
 def MintDoi(user):
-    payload = json.loads(request.data)
+    # attempt to parse payload
+    try:
+        payload = json.loads(request.data.decode('utf-8'))
+        assert isinstance(payload, dict)
+    except:
+        return Response(
+                status = 400,
+                response = json.dumps({
+                    'status': 400,
+                    'message': 'Cannot Parse Payload',
+                    'data': request.data.decode('utf-8')
+                    })
+
+                )
+
+    # validate payload structure
+    try:
+        validate(instance=payload, schema=doi_schema)
+
+    except ValidationError as err:
+        return Response(
+                status = 400,
+                response = json.dumps({
+                    'status': 400,
+                    'message': 'Bad Payload',
+                    'validationError': str(err)
+                    })
+                )
+
     doi_obj = Doi(data=payload, status= request.args.get('status', 'draft'))
     return doi_obj.post_api(user=user)
 
@@ -431,15 +467,12 @@ def MintDataguid(user):
         return Response(
                 status = 400,
                 response= request.data
-
-                )
-        '''
                 response = json.dumps({
                     'status': 400,
                     'message': "Could not parse payload",
                     'payload': request.data
                     })
-        '''
+                )
 
     if request.args.get('format') == 'dg':
         try:
