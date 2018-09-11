@@ -24,6 +24,17 @@ celery = Celery(
         )
 
 #######################
+#   Expiring Ark Task #
+#######################
+@celery.task(name='delete_task')
+def delete_task(target, user, password):
+    response = requests.delete(
+        url = target,
+        auth = requests.auth.HTTPBasicAuth(user, password)
+    )
+
+
+#######################
 #  Dataguid Neo Tasks #
 #######################
 
