@@ -104,3 +104,284 @@ dg_schema_org = {
     ]},
     'required': ['contentUrl', 'identifier', 'contentSize']
 }
+
+doi_schema = {
+    '$schema': 'http://json-schema.org/schema#',
+    'title': 'Doi',
+    'additionalProperties': False,
+    'description': 'Schema.org Payload used to Create or Update a Datacite DOI',
+    'required': ['name', 'author', 'publisher', 'datePublished'],
+    'type': 'object',
+    'properties': {
+        '@id': {'type': 'string'},
+        '@context': {'enum': ['https://schema.org']},
+        '@type': {'enum': ['Dataset', 'CreativeWork', 'SoftwareSourceCode', 'SoftwareApplication', 'Collection', 'Report']},
+        'identifier': {
+            'type': 'array',
+            'uniqueItems': True,
+            'items': {
+                'anyOf': [
+                    {'type': 'object', 'properties': {
+                        "value": {'type': 'string'},
+                        "@type": {'enum': ['PropertyValue']},
+                        "name": {'enum': ['md5', 'sha', 'sha256', 'sha512', 'crc', 'etag']}
+                        }
+                    },
+                {'type': 'string'}
+            ]},
+            'minItems': 1,
+        },
+        'url': {
+            'type': 'string',
+            'format': 'uri'
+        },
+        'includedInDataCatalog': {
+                'oneOf': [
+                    {'type': 'string', 'description': 'Single Persistant Identifier'},
+                    {
+                        'type': 'object', 'properties': {
+                        '@id': {'type': 'string'},
+                        '@type': {'type': 'string'},
+                        'name': {'type': 'string'}
+                        }
+                    },
+                    {
+                        'type': 'array',
+                        'items': {
+                            'anyOf' : [
+                                 {'type': 'string', 'description': 'Single Persistant Identifier'},
+                                {
+                                'type': 'object', 'properties': {
+                                '@id': {'type': 'string'},
+                                '@type': {'type': 'string'},
+                                'name': {'type': 'string'}
+                                    }
+                                }]
+                        }
+                    }
+                ]
+        },
+        'name': {
+            'description': 'Name of the resource',
+            'type': 'string'
+        },
+        'author': {
+            'oneOf': [
+                    {
+                        'type':'object',
+                        'properties': {
+                            '@id': {'type':'string'},
+                            '@type': {'enum': ['Person', 'Organization']},
+                            'name': {'type': 'string'}
+                        }
+                    },
+                    {
+                        'type': 'array', 'items': {
+                            'anyOf': [{
+                        'type':'object',
+                        'properties': {
+                            '@id': {'type':'string'},
+                            '@type': {'enum': ['Person', 'Organization']},
+                            'name': {'type': 'string'}
+                            }
+                        }]
+                        }
+
+                    }
+            ]
+        },
+        'publisher': {
+            'oneOf': [
+                {'type': 'object',
+                 'properties': {
+                     '@id': {'type': 'string'},
+                     '@type': {'enum': ['Person', 'Organization']},
+                     'name': {'type': 'string'}
+                 }
+                }
+
+            ]
+
+        },
+        'datePublished': {
+            'type': 'string'
+        },
+        'dateCreated': {
+            'type': 'string'
+        },
+        'additionalType': {
+            'oneOf': [
+                    {'type': 'string'},
+                    {
+                        'type': 'array',
+                        'items': {'type': 'string'}
+                    }
+            ]
+        },
+        'description': {
+            'type': 'string'
+        },
+        'keywords': {
+            'oneOf': [
+                {'type': 'string'},
+                {'type': 'array',
+                'items': {'type': 'string'}}
+            ]
+        },
+        'license': {'type': 'string', 'format': 'uri'},
+        'version': {'type': 'string'},
+        'citation': {'type': 'string'},
+        'funder': {
+                'anyOf': [
+                    {'type': 'string'},
+                    {'type': 'object', 'properties':{
+                        '@id': {'type': 'string'},
+                        '@type': {'type': 'string'},
+                        'name': {'type': 'string'}
+                    }},
+                    {'type': 'array', 'items':
+                        {'anyOf': [
+                            {'type': 'string'},
+                            {'type': 'object', 'properties':{
+                            '@id': {'type': 'string'},
+                            '@type': {'type': 'string'},
+                            'name': {'type': 'string'}
+                            }}
+                        ]}
+
+
+                    }
+                ]
+        },
+        'contentSize': {
+            'type': 'string'
+        },
+        'fileFormat': {
+            'type': 'string'
+        },
+        'contentUrl': {
+            'oneOf': [
+                {
+                    'type': 'string',
+                    'format': 'uri'
+                },
+                {
+                    'type': 'array',
+                    'items': {'type': 'string', 'format': 'uri'}
+                }
+            ]
+        },
+         'isBasedOn': {
+                'anyOf': [
+                    {'type': 'string'},
+                    {'type': 'array',
+                    'items': {'type': 'string'}}
+                ]
+        },
+        'predecessorOf': {
+                'oneOf': [
+                    {'type': 'string'},
+                    {'type': 'array',
+                    'items': {'type': 'string'}}
+                ]
+        },
+        'successorOf': {
+                'anyOf': [
+                    {'type': 'string'},
+                    {'type': 'array',
+                    'items': {'type': 'string'}}
+                ]
+        },
+        'hasPart': {
+                'anyOf': [
+                    {'type': 'string'},
+                    {'type': 'array',
+                    'items': {'type': 'string'}}
+                ]
+        },
+        'isPartOf': {
+                'anyOf': [
+                    {'type': 'string'},
+                    {'type': 'array',
+                    'items': {'type': 'string'}}
+                ]
+        }
+    }
+}
+
+ark_schema = {
+    '$schema': 'http://json-schema.org/schema#',
+    'title': 'Ark',
+    'additionalProperties': False,
+    'description': 'Schema.org Payload used to Create or Update an ARK',
+    'required': ['name', 'author', 'dateCreated'],
+    'type': 'object',
+    'properties': {
+        '@id': {'type': 'string'},
+        '@type': {'enum': ['Dataset', 'CreativeWork']},
+        'identifier': {
+            'oneOf': [
+                {'type': 'string'},
+                {
+                    'type': 'array',
+                    'items':
+                        {
+                        'anyOf': [
+                            {'type':'string'},
+                            {
+                            'type': 'object',
+                            'properties': {
+                                '@type': {'enum': ['PropertyValue']},
+                                'name': {'type': 'string'},
+                                'value': {'type': 'string'}
+                                }
+                            }
+                            ]
+                        }
+                }
+            ]
+            },
+        'url': {'type': 'string'},
+        'contentUrl': {
+            'oneOf': [
+                 {'type': 'string', 'format': 'uri'},
+                {
+                'type': 'array',
+                'items': {'type': 'string', 'format': 'uri'}
+                }
+            ]
+
+        },
+        'includedInDataCatalog': {'type': 'string'},
+        'dateCreated': {'type': 'string'},
+        'expires': {'type': 'string'},
+        'name': {'type':'string'},
+        'checksum': {'type': 'string'},
+        'checksumMethod': {'type': 'string'},
+        'author': {
+            'oneOf': [
+                    {
+                        'type':'object',
+                        'properties': {
+                            '@id': {'type':'string'},
+                            '@type': {'enum': ['Person', 'Organization']},
+                            'name': {'type': 'string'}
+                        }
+                    },
+                    {
+                        'type': 'array', 'items': {
+                            'anyOf': [{
+                        'type':'object',
+                        'properties': {
+                            '@id': {'type':'string'},
+                            '@type': {'enum': ['Person', 'Organization']},
+                            'name': {'type': 'string'}
+                            }
+                        }]
+                        }
+
+                    }
+            ]
+        }
+    }
+}
