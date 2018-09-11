@@ -568,19 +568,8 @@ class Doi(object):
                 )
 
         if datacite_request.status_code == 404:
-            if content_type == 'text/html':
-                template = jinja_env.get_template('DoiNotFound.html')
-                return Response(status=404,
-                        response = template.render(doi= 'http://doi.org/'+self.guid),
-                        mimetype='text/html')
-            else:
-                return Response(status=404,
-                        response = json.dumps({
-                            '@id': self.guid,
-                            'code': 404,
-                            'url':'https://data.datacite.org/application/vnd.schemaorg.ld+json/'+ self.guid,
-                            'error': 'Doi Was not Found'}),
-                        mimetype='application/ld+json')
+            # look in MDS to find if metadata has been recently submitted
+            return self.fetch_mds(content_type)
 
         payload = json.loads(datacite_request.content.decode('utf-8'))
 
