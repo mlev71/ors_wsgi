@@ -1,5 +1,5 @@
-   
-{% extends "base.html" %} 
+
+{% extends "base.html" %}
 
       <!--Dublin Core Embedding for Doi-->
    {% block dchead %}
@@ -8,35 +8,35 @@
       </script>
 
       <title> Landing Page for {{ data['@id'] }} </title>
-      
+
       <!-- What DC metadata is in the page-->
       <link rel="schema.DC" href="http://purl.org/dc/elements/1.1/" >
       <link rel="schema.DCTERMS" href="http://purl.org/dc/terms/" >
       <link rel="schema.DCTYPE" href="http://purl.org/dc/dcmitype" >
-      
+
       <!-- Values-->
       <meta name="DC.type" content = "Dataset" >
       <meta name="DC.title" content = "Landing Page for {{ data['name']}}" >
-      
-      <!-- identifier -->            
-      <meta name="DC.identifier" content ="{{ data['@id']}}" scheme="DCTERMS.URI" > 
-      <link rel="DC.identifier" content ="{{ data['@id']}}" scheme="DCTERMS.URI" > 
-      
-      <!-- locations --> 
-      <meta name="DCTERMS.subject" href= "{{ data['name'] }}" > 
-      <link rel="DCTERMS.subject" href="{{ data['name'] }}" > 
+
+      <!-- identifier -->
+      <meta name="DC.identifier" content ="{{ data['@id']}}" scheme="DCTERMS.URI" >
+      <link rel="DC.identifier" content ="{{ data['@id']}}" scheme="DCTERMS.URI" >
+
+      <!-- locations -->
+      <meta name="DCTERMS.subject" href= "{{ data['name'] }}" >
+      <link rel="DCTERMS.subject" href="{{ data['name'] }}" >
    {% endblock %}
 
-   <!-- Schema.org formatted body --> 
+   <!-- Schema.org formatted body -->
    {% block body %}
    <body itemscope itemtype="http://schema.org/Dataset">
-      
+
       <!-- required Identifier Metadata -->
       <div class='container' id="body_container">
          <div id='identifier_container' class='container'>
             <h2 class='container_header'> Identifier Metadata </h2>
 
-            <!-- required keys --> 
+            <!-- required keys -->
             <table>
                <tr>
                   <th class='metadataKey' > Name </th>
@@ -52,12 +52,12 @@
             {% elif data['identifier'] is iterable and data['identifier']|length>1 %}
             <tr>
                <th class='metadataKey'> Identifiers </th>
-               <th> 
+               <th>
                   <table>
                   {% for id in data['identifier'] %}
                      {% if id is string %}
                      <tr> <th class='metadataVal identifier'> <a href="{{id}}"> {{id}} </a>  </th> </tr>
-                     {% endif %} 
+                     {% endif %}
                   {% endfor %}
                   </table>
                </th>
@@ -71,7 +71,7 @@
                   <th class='metadataVal url'><a href="{{data['url']}}"> {{data['url']}} </a></th>
                </tr>
             {% endif %}
-               
+
             {% if data['author'] is mapping %}
             <tr>
                <th class='metadataKey'> Author </th>
@@ -113,7 +113,7 @@
                <th class='metadataKey'> Date Published </th>
                <th class='metadataVal datePublished' itemprop="datePublished">{{data['datePublished']}}</th>
             </tr>
-        
+
 
                {% if data['dateCreated'] is defined %}
                <tr>
@@ -151,7 +151,7 @@
                   <th class="metadataVal liscence" itemprop="license"> {{data['license']}} </th>
                </tr>
                {% endif %}
-               
+
                {% if data['version'] is defined %}
                <tr>
                   <th class="metadataKey"> Version </th>
@@ -173,19 +173,19 @@
 
             </table>
          </div>
-      
+
          <!-- file description metadata -->
 
          <div id="file_container" class='container'>
             <table>
-            {% if data['contentSize'] is defined %} 
+            {% if data['contentSize'] is defined %}
                <tr>
                   <th class="metadataKey"> Content Size </th>
                   <th class="metadataVal contentSize"> {{data['contentSize']}} </th>
                </tr>
-            
+
             {% endif %}
-            
+
             {% if data['fileFormat'] is defined %}
                <tr>
                   <th class="metadataKey"> File Format </th>
@@ -198,7 +198,7 @@
             <tr>
                <th class="metadataKey"> Cloud Locations </th>
                {% if data['contentUrl'] is iterable %}
-               <th> 
+               <th>
                   <ul>
                   {% for cloud_location in data['contentUrl'] %}
                   <li> <a href="{{cloud_location}}" class="metadataVal contentUrl"> {{cloud_location}} </a>  </li>
@@ -212,10 +212,10 @@
             {% endif %}
 
             </table>
-            <!-- look for checksums -->  
+            <!-- look for checksums -->
          </div>
 
-    
+
          <!-- citation metadata -->
          {% if data['citation'] is defined %}
          <div id='citation_container' class='container'>
@@ -239,13 +239,13 @@
                      </tr>
 
                      {% if data['isPartOf']['@id'] is defined %}
-                     <tr> 
+                     <tr>
                         <th> Data Catalog Id
                         <th> {{data['isPartOf']['@id']}} </th>
                      </tr>
                      {% endif %}
 
-                     
+
                   </table>
 
                {% endif %}
@@ -255,68 +255,77 @@
                   <tr>
                      <th> Is Based On </th>
                      <th itemprop="isBasedOn" class="metadataVal isBasedOn"> {{data['isBasedOn']}} </th>
-                  </tr> 
+                  </tr>
                   {% endif %}
 
                   {% if data['PredecesorOf'] is defined %}
                   <tr>
                      <th> Predecessor Of </th>
                      <th itemprop="PredecessorOf" class="metadataVal PredecessorOf"> {{data['PredecessorOf']}} </th>
-                  </tr> 
+                  </tr>
                   {% endif %}
 
                   {% if data['successorOf'] is defined %}
                   <tr>
                      <th> Successor Of </th>
                      <th itemprop="successorOf" class="metadataVal successorOf"> {{data['successorOf']}} </th>
-                  </tr> 
+                  </tr>
                   {% endif %}
 
                   {% if data['hasPart'] is defined %}
                   <tr>
                      <th> Has Part </th>
                      <th itemprop="hasPart" class="metadataVal hasPart"> {{data['hasPart']}} </th>
-                  </tr> 
+                  </tr>
                   {% endif %}
 
                </table>
-        
+
          </div>
          {% endif %}
 
-         <!-- funder data --> 
-         {% if data['funding'] is defined %} 
+         <!-- funder data -->
+         {% if data['funding'] is defined %}
          <div id='funder_container' class='container'>
-            <h2 class='container_header'> Funding Metadata </h2>        
+            <h2 class='container_header'> Funding Metadata </h2>
             <table>
                <tr>
                   <th> Name </th>
                   <th> Identifier </th>
                   <th> Type </th>
                </tr>
-            {% for funder in data['funding'] %}
-               <tr itemtype="http://schema.org/funder">
-                  <th itemprop="name" class="metadataVal funderName"> {{funder['name']}} </th>
+            {% if data['funding'] is iterable}
+              {% for funder in data['funding'] %}
+                 <tr itemtype="http://schema.org/funder">
+                    <th itemprop="name" class="metadataVal funderName"> {{funder['name']}} </th>
 
-                  <th itemprop="@id"> <a href="{{funder['@id']}}" class="metadataVal funderId"> {{funder['@id']}} </a> </th>
+                    <th itemprop="@id"> <a href="{{funder['@id']}}" class="metadataVal funderId"> {{funder['@id']}} </a> </th>
 
-                  <th itemprop="@type" class="metadataVal funderType"> {{funder['@type']}} </th>
+                    <th itemprop="@type" class="metadataVal funderType"> {{funder['@type']}} </th>
 
-               </tr>
+                 </tr>
 
-            {% endfor %}
+              {% endfor %}
+          {% elif data['funding'] is mapping}
+            <tr itemtype="http://schema.org/funder">
+               <th itemprop="name" class="metadataVal funderName"> {{data['funding']['name']}} </th>
+
+               <th itemprop="@id"> <a href="{{data['funding']['@id']}}" class="metadataVal funderId"> {{data['funding']['@id']}} </a> </th>
+
+               <th itemprop="@type" class="metadataVal funderType"> {{data['funding']['@type']}} </th>
+
+            </tr>
+          {% endif %}
 
             </table>
          </div>
          {% endif %}
       </div>
 
-      <div class="container"> 
+      <div class="container">
          <h2> JSON-LD </h2>
          <p>{{data|tojson|safe}}</p>
       </div>
 
    </body>
    {% endblock %}
-
-
