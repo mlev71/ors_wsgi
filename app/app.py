@@ -335,11 +335,15 @@ def MintArk(user):
                     })
                 )
 
-    ark = Ark(data=payload)
-    status = request.args.get('status', 'reserved')
-    api_response = ark.post_api(user=user, status=status)
 
-    return api_response
+
+    if request.args.get('publish', 'False') == 'True':
+        status = 'public'
+    else:
+        status = 'reserved'
+
+    ark = Ark(data=payload, status=status)
+    return  ark.post_api(user=user)
 
 
 @app.route('/ark:/<path:Shoulder>/<path:Id>', methods = ['DELETE'])
@@ -428,7 +432,12 @@ def MintDoi(user):
                     })
                 )
 
-    doi_obj = Doi(data=payload, status= request.args.get('status', 'draft'))
+    if request.args.get('publish', 'False') == 'True':
+        status = 'findable'
+    else:
+        status = 'draft'
+
+    doi_obj = Doi(data=payload, status=status)
     return doi_obj.post_api(user=user)
 
 
@@ -494,7 +503,7 @@ def MintDataguid(user):
 
     else:
         try:
-            validate(payload, dataguid_schema_org)
+            validate(instance=payload, schema=dataguid_schema_org)
 
         except ValidationError as err:
           return Response(
