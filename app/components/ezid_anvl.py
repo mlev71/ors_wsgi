@@ -26,8 +26,8 @@ def unroll(anvl):
 
     # create objects for every unique_root_key
     # ('author', {'name': 'max;other',...} )
-    objects = [ (unique_key, {restricted_keys.get(anvl_key.split('.')[1], anvl_key.split('.')[1]): anvl_value 
-        for anvl_key, anvl_value in anvl.items() 
+    objects = [ (unique_key, {restricted_keys.get(anvl_key.split('.')[1], anvl_key.split('.')[1]): anvl_value
+        for anvl_key, anvl_value in anvl.items()
         if len(anvl_key.split('.')) == 2 and anvl_key.split('.')[0] == unique_key})
         for unique_key in unique_root_keys]
 
@@ -35,7 +35,7 @@ def unroll(anvl):
         key = object_elem[0]
         merged = object_elem[1]
 
-        split = [{key: value.split(';')[i] for key,value in merged.items()} 
+        split = [{key: value.split(';')[i] for key,value in merged.items()}
                 for i in range(len(list(merged.values())[0].split(';'))) ]
 
         if isinstance(output.get(key), str):
@@ -77,27 +77,27 @@ def profileFormat(anvlDict):
 
 def flatten(anvlDict):
     output = {}
-    
+
     for key, value in anvlDict.items():
-        
+
         if isinstance(value, dict):
             for subKey, subValue in value.items():
                 joined_key = ".".join([key,subKey])
                 output[joined_key] = subValue
-            
+
         if isinstance(value, str):
             output[key] = value
 
         if isinstance(value, list):
             output[key] = ";".join([string_elem for string_elem in value if isinstance(string_elem, str)])
-            
+
             # add another key if there is a dictionary inside the list
             for dict_elem in value:
                 if isinstance(dict_elem, dict):
                     for subKey, subValue in dict_elem.items():
                         joined_key = ".".join([key, subKey])
                         output[joined_key] = subValue
-    
+
     return output
 
 

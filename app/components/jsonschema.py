@@ -149,7 +149,6 @@ doi_schema = {
         },
         'includedInDataCatalog': {
                 'oneOf': [
-                    {'type': 'string', 'description': 'Single Persistant Identifier'},
                     {
                         'type': 'object', 'properties': {
                         '@id': {'type': 'string'},
@@ -161,7 +160,6 @@ doi_schema = {
                         'type': 'array',
                         'items': {
                             'anyOf' : [
-                                 {'type': 'string', 'description': 'Single Persistant Identifier'},
                                 {
                                 'type': 'object', 'properties': {
                                 '@id': {'type': 'string'},
@@ -190,11 +188,11 @@ doi_schema = {
                     {
                         'type': 'array', 'items': {
                             'anyOf': [{
-                        'type':'object',
-                        'properties': {
-                            '@id': {'type':'string'},
-                            '@type': {'enum': ['Person', 'Organization']},
-                            'name': {'type': 'string'}
+                            'type':'object',
+                            'properties': {
+                                '@id': {'type':'string'},
+                                '@type': {'enum': ['Person', 'Organization']},
+                                'name': {'type': 'string'}
                             }
                         }]
                         }
@@ -204,16 +202,34 @@ doi_schema = {
         },
         'publisher': {
             'oneOf': [
-                {'type': 'object',
-                 'properties': {
-                     '@id': {'type': 'string'},
-                     '@type': {'enum': ['Person', 'Organization']},
-                     'name': {'type': 'string'}
-                 }
+                {
+                    'type': 'object',
+                     'properties': {
+                         '@id': {'type': 'string'},
+                         '@type': {'enum': ['Person', 'Organization']},
+                         'name': {'type': 'string'}
+                            }
+                },
+
+                {
+                    'type': 'array',
+                    'items': {
+                        'anyOf': [
+                            {
+                            'type': 'object',
+                             'properties': {
+                                 '@id': {'type': 'string'},
+                                 '@type': {'enum': ['Person', 'Organization']},
+                                 'name': {'type': 'string'}
+                                    }
+                            },
+
+
+                            ]}
                 }
 
-            ]
 
+            ]
         },
         'datePublished': {
             'type': 'string'
@@ -317,9 +333,10 @@ doi_schema = {
                     {'type': 'array',
                     'items': {'type': 'string'}}
                 ]
-        }
+            }
     }
 }
+
 
 ark_schema = {
     '$schema': 'http://json-schema.org/schema#',

@@ -222,17 +222,18 @@ class Ark(object):
                     mimetype='application/json')
 
 
-    def post_api(self, user, status='reserved'):
+    def post_api(self, user):
         ''' Interface for minting ARK identifiers '''
         payload = profileFormat(flatten(self.data))
 
+        # if the identifier is unspecified
         if self.data.get('@id') is None and self.data.get('identifier') is None:
             target = self.endpoint.replace('id/', 'shoulder/ark:/13030/d3')
             landing_page = 'https://ors.datacite.org/${identifier}'
 
             payload.update({
                     "_target": landing_page,
-                    "_status": status,
+                    "_status": self.status,
                     "_profile": "NIHdc"
                         })
 
@@ -245,14 +246,15 @@ class Ark(object):
                     data = anvl_payload
                     )
 
+
         else:
-            target = "".join([self.endpoint, self.data.get('@id')])
+            target = "".join([self.endpoint, self.data.get('@id'), '?update_if_exists=yes'])
 
             landing_page = self.data.get('url', 'https://ors.datacite.org/{}'.format(self.data.get('@id')) )
 
             payload.update({
                     "_target": landing_page,
-                    "_status": status,
+                    "_status": self.status,
                     "_profile": "NIHdc"
                         })
 
@@ -276,7 +278,7 @@ class Ark(object):
         put_ark.apply_async(kwargs={
             'UserEmail': user.email,
             'guid': identifier,
-            'status':status,
+            'status': self.status,
             'schemaJson': self.data
             })
 
@@ -286,7 +288,7 @@ class Ark(object):
             response_message = {
                 "@id": identifier,
                 "message": "Successfully minted identifier",
-                "code": 201,
+                "status": 201,
                 "ezid_response": {
                         "status": ezid_status,
                         "message": ezid_response
@@ -309,7 +311,7 @@ class Ark(object):
 
 
                 delete_task.apply_async(
-                        (target, self.auth[0], self.auth[1]),
+                        (target, EZID_USER, EZID_PASSWORD),
                         eta = parser.parse(expiration)
                         )
 
@@ -344,88 +346,17 @@ class Ark(object):
 
 
         else:
-            if ezid_response == "error: bad request - identifier already exists":
-                successfully_updated = []
-                failed_updated = []
-                for field, value in payload.items():
-                    try:
-                        update_response = requests.post(
-                                auth = requests.auth.HTTPBasicAuth(self.auth[0], self.auth[1]),
-                                url = target,
-                                data = '{}: {}'.format(field, value)
-                                )
-                        assert update_response.status_code == 200
-                        successfully_updated.append(field)
-
-                    except AssertionError:
-                        failed_updated.append(field)
-
-                if len(failed_updated) == 0:
-                    response_message = {
-                                '@id': identifier,
-                                'code': 200,
-                                'message': 'Succsessfully Updated all Identifier metadata {}'.format(identifier),
-                                'updated_keys': successfully_updated,
+            return Response(
+                    status = 400,
+                    response = json.dumps({
+                        '@id': identifier,
+                        'message': 'Identifier Not Sucsessfully Minted',
+                        'ezid': {
+                                'status': ezid_status,
+                                'message': ezid_response
                                 }
-
-
-                else:
-                    response_message = {
-                                '@id': identifier,
-                                'code': 207,
-                                'message': 'Failed to update Identifier metadata {}'.format(identifier),
-                                'updated_keys': successfully_updated,
-                                'failed_update': failed_updated
-                                }
-
-
-                if self.data.get('expires') is not None and status!="public":
-                    expiration = self.data.pop('expires')
-                    try:
-                        expiration_datetime = parser.parse(expiration)
-                        exp = datetime.datetime.now() - expiration_datetime
-
-                        task = delete_task.apply_async(
-                                (target, EZID_USER, EZID_PASSWORD),
-                                eta = expiration_datetime
-                                )
-
-                        response_message.update(
-                                {"expiration":
-                                    {
-                                    'status': 200,
-                                    'message': 'Identifier will be deleted in {} seconds'.format(exp.seconds),
-                                }
-                                    })
-
-                    except:
-                        response_message.update(
-                                {"expiration":
-                                    {
-                                        'status': 400,
-                                        'message': 'Failed to parse date {}'.format(expiration)
-                                        }
-                                    })
-
-                return Response(
-                    status = response_message.get('code'),
-                    response = json.dumps(response_message),
-                    mimetype = 'application/json'
-                        )
-
-
-            else:
-                return Response(
-                        status = 400,
-                        response = json.dumps({
-                            '@id': identifier,
-                            'message': 'Identifier Not Sucsessfully Minted',
-                            'ezid': {
-                                    'status': ezid_status,
-                                    'message': ezid_response
-                                    }
-                                })
-                        )
+                            })
+                    )
 
 
 
@@ -438,13 +369,10 @@ class Doi(object):
         self.data = kwargs.get('data')
         self.status = kwargs.get('status')
 
-        if self.data is not None:
-            assert isinstance(self.data, dict)
-
     def post_api(self, user):
-        ''' Submit XML payload to Datacite
+        ''' Post valid Schema.org to Datacite MDS API
         '''
-        response = {}
+
         if self.data.get('@id') is not None:
             doi = self.data.get('@id').replace('doi:/','').replace('https://doi.org/', '')
         else:
@@ -452,18 +380,10 @@ class Doi(object):
             doi = '10.25489/'+''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
             self.data['@id'] = 'https://doi.org/'+doi
 
-        # validate payload
-        try:
-            validate(instance=self.data, schema=doi_schema)
-        except ValidationError as err:
-            return Response(
-                      status = 400,
-                      response = json.dumps({
-                          'status': 400,
-                          'message': 'Bad Payload',
-                          'validationError': str(err)
-                          })
-                      )
+        response = {
+            '@id': 'doi:/'+doi,
+            'datacite': {},
+        }
 
         # register metadata- MUST HAPPEN FIRST
         create_metadata = requests.put(
@@ -473,13 +393,11 @@ class Doi(object):
                 headers = {'Content-Type': 'application/vnd.schemaorg.ld+json;charset=utf-8'},
                 )
 
-        try:
-            assert create_metadata.status_code == 201
-
-        except AssertionError:
+        if create_metadata.status_code != 201:
             return Response(
                     status = 500,
                     response = json.dumps({
+                        '@id': 'doi:/'+doi,
                         'status': 500,
                         'message': 'Unable to submit metadata',
                         'datacite': {
@@ -491,7 +409,7 @@ class Doi(object):
 
                     )
 
-
+        # store record of status in neo4j
         put_doi.apply_async(kwargs = {
             'UserEmail': user.email,
             'guid': doi,
@@ -500,7 +418,7 @@ class Doi(object):
         })
 
 
-        response.update({
+        response.get('datacite').update({
             'metadataRegistration': create_metadata.content.decode('utf-8')
             })
 
@@ -515,7 +433,7 @@ class Doi(object):
                 )
 
 
-            response.update({
+            response.get('datacite').update({
                 'doiReservation': reserve_doi.content.decode('utf-8')
                 })
 
@@ -538,7 +456,7 @@ class Doi(object):
 
                     media_responses.append(media_request.content.decode('utf-8'))
 
-                response.update({ 'mediaRegistration': media_responses })
+                response.get('datacite').update({ 'mediaRegistration': media_responses })
 
             elif isinstance(contentUrl, str):
                 media = fileFormat+'='+contentUrl
@@ -650,32 +568,6 @@ class Doi(object):
                         response = json.dumps(json_ld),
                         mimetype='application/ld+json'
                         )
-
-
-    def fetch_works(self):
-        works_response = requests.get(url = 'https://api.datacite.org/works/'+self.guid)
-
-        try:
-            assert works_response.status_code == 200
-        except AssertionError:
-            raise NotADataciteDOI(self.guid)
-
-        try:
-            payload = works_response.content.decode('utf-8')
-            works = json.loads(payload).get('data', {}).get('attributes', {})
-            assert works is not None
-            assert works.get('xml') is not None
-        except AssertionError:
-            raise IncompletePayload(self.guid, payload)
-
-        self.response = DoiResponse(works)
-        try:
-
-            json_ld = self.response.parse()
-        except:
-            raise InvalidPayload(self.guid, works)
-
-        return json_ld
 
 
     def delete_api(self):
@@ -838,7 +730,8 @@ class Dataguid(object):
                 'form': 'object',
                 'hashes': {checksum.get('name'): checksum.get('value') for checksum in self.checksums},
                 'urls': self.schema_json.get('contentUrl'),
-                'file_name': re.findall(r'\w*.\w*$', self.schema_json.get('contentUrl')[0])[0],
+                'file_name': self.schema_json.get('name'),
+                #re.findall(r'\w*.\w*$', self.schema_json.get('contentUrl')[0])[0],
                 'size': int(self.schema_json.get('contentSize')),
 
                 # Metadata breaks posting to
@@ -868,7 +761,7 @@ class Dataguid(object):
                     self.dg_json.get('baseid')
                     ],
                 'name': self.dg_json.get('file_name'),
-                'url': ORS_URL+'dataguid:/{}'.format(self.dg_json.get('did')),
+                'url': ORS_URL+'/dataguid:/{}'.format(self.dg_json.get('did')),
                 'contentSize': self.dg_json.get('size'),
                 'dateCreated': self.dg_json.get('created_date'),
                 'contentUrl': self.dg_json.get('urls'),
@@ -946,8 +839,7 @@ class Dataguid(object):
 
         if post_dg.status_code == 200:
             dg = json.loads(post_dg.content.decode('utf-8'))
-
-            did = re.sub(r'^\w*:', '', dg.get('did'))
+            did = dg.get('did')
 
             # add task to celery to keep record of celery
             put_task = put_dataguid.delay(

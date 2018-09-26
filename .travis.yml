@@ -16,9 +16,6 @@ install:
    - pip3 install mock nose parameterized
 
 
-script:
-   - python3 app/test/
-
 after_success:
    - set -e
    - docker login -u "$DOCKER_USERNAME" -p "$DOCKER_PASSWORD";

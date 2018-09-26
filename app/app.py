@@ -58,7 +58,6 @@ bugsnag.notify(Exception('Test Error on Starting Application'))
     #app.logger
 
 @app.route('/', methods = ['GET'])
-@globus_auth
 def home():
     ''' Render Homepage with Content Information'''
     # count the number of downloads, datasets, and

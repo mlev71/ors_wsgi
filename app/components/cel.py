@@ -145,18 +145,21 @@ def put_ark(UserEmail, guid, status, schemaJson):
         cs_list = list(filter(lambda x: isinstance(x, dict),
             schemaJson.get('identifier')))
 
-        checksums = [
-            Checksum(
-                Method=cs_elem.get('name'),
-                Value=cs_elem.get('value')
-                ).save()
-            for cs_elem in cs_list]
+        if len(cs_list)!=0:
+            checksums = [
+                Checksum(
+                    Method=cs_elem.get('name'),
+                    Value=cs_elem.get('value')
+                    ).save()
+                for cs_elem in cs_list]
 
-        for cs_node in checksums:
-            ark.hasChecksum.connect(cs_node)
+            for cs_node in checksums:
+                ark.hasChecksum.connect(cs_node)
 
     # if minid profile with single specified cs and method
-    else:
+    if schemaJson.get('checksum') is not None and \
+        schemaJson.get('checksumMethod') is not None:
+
         cs = Checksum(
             Method = schemaJson.get('checksumMethod'),
             Value = schemaJson.get('checksum')
@@ -166,16 +169,17 @@ def put_ark(UserEmail, guid, status, schemaJson):
 
 
     # add downloads
-    downloads = [
-            Download(
-                url=dl,
-                contentSize=schemaJson.get('contentSize'),
-                fileFormat=schemaJson.get('fileFormat')
-                ).save()
-            for dl in schemaJson.get('contentUrl')]
+    if schemaJson.get('contentUrl') is not None:
+        downloads = [
+                Download(
+                    url=dl,
+                    contentSize=schemaJson.get('contentSize'),
+                    fileFormat=schemaJson.get('fileFormat')
+                    ).save()
+                for dl in schemaJson.get('contentUrl')]
 
-    for dl_node in downloads:
-        ark.hasDownload.connect(dl_node)
+        for dl_node in downloads:
+            ark.hasDownload.connect(dl_node)
 
     ark.mintedBy.connect(user)
     ark.hasMetadata.connect(metadata)
