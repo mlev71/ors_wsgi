@@ -57,52 +57,64 @@ dataguid_schema = {
     'required': ['size', 'hashes', 'urls', 'form'],
     'type': 'object'}
 
-dg_schema_org = {
+dataguid_schema_org = {
     '$schema': 'http://json-schema.org/schema#',
     'title': 'ORS Dataguid',
     'additionalProperties': False,
     'description': 'Schema.org Format of a Dataguid',
-    '@context': {'enum': ['https://schema.org']},
-    '@type': {'enum': ['Dataset', 'DataCatalog', 'CreativeWork']},
-    '@id': {
-            'pattern': '^.*[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$',
-            'type': 'string'
+    'required': ['contentUrl', 'identifier', 'contentSize'],
+    'type': 'object',
+    'properties': {
+        '@context': {'enum': ['https://schema.org']},
+        '@type': {'enum': ['Dataset', 'DataCatalog', 'CreativeWork']},
+        '@id': {
+                'pattern': '^.*[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$',
+                'type': 'string'
+            },
+        'identifier': {
+            'type': 'array',
+            'uniqueItems': True,
+            'items':
+                {'anyOf': [
+                    {
+                        'type': 'object',
+                        'required': ['name', '@type', 'value'],
+                        'properties': {
+                        "value": {'type': 'string'},
+                        "@type": {'enum': ['PropertyValue']},
+                        "name": {'enum': ['md5', 'sha', 'sha256', 'sha512', 'crc', 'etag']}
+                    }
+                },
+                {'type': 'string', 'pattern': '^.*[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$'}
+            ]}
         },
-    'identifier': {
-        'type': 'array',
-        'uniqueItems': True,
-        'items':
-            {'anyOf': [
-                {'type': 'object', 'properties': {
-                    "@value": {'type': 'string'},
-                    "@type": {'enum': ['PropertyValue']},
-                    "name": {'enum': ['md5', 'sha', 'sha256', 'sha512', 'crc', 'etag']}
-                }
-            },
-            {'type': 'string', 'pattern': '^.*[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$'}
-        ]}
-    },
-    'url': {'type': 'string', 'format': 'uri'},
-    'name': {'type':'string'},
-    'contentUrl': {'type': 'array', 'items': {'type':'string', 'format': 'uri'}},
-    'version': {'type':'string'},
-    'contentSize': {'type': 'integer', 'exclusiveMinimum': 0},
-    'author': {'oneOf': [
-        {'type': 'object', 'properties':{
-            '@type': {'type': 'string'},
-            'name': {'type': 'string'}
-        }},
-        {'type': 'string'},
-        {'type': 'array', 'items': {'anyOf': [
-            {'type': 'object',
-             'properties':{
+        'url': {'type': 'string', 'format': 'uri'},
+        'name': {'type':'string'},
+        'contentUrl': {'type': 'array', 'items': {'type':'string', 'format': 'uri'}},
+        'version': {'type':'string'},
+        'contentSize': {
+            'oneOf': [
+                {'type': 'integer'},
+                {'type': 'string'}
+            ]
+        },
+
+        'author': {'oneOf': [
+            {'type': 'object', 'properties':{
                 '@type': {'type': 'string'},
-                'name': {'type': 'string'}}
-            },
-            {'type': 'string'}
-        ]}}
-    ]},
-    'required': ['contentUrl', 'identifier', 'contentSize']
+                'name': {'type': 'string'}
+            }},
+            {'type': 'string'},
+            {'type': 'array', 'items': {'anyOf': [
+                {'type': 'object',
+                 'properties':{
+                    '@type': {'type': 'string'},
+                    'name': {'type': 'string'}}
+                },
+                {'type': 'string'}
+            ]}}
+            ]}
+    }
 }
 
 doi_schema = {
@@ -318,6 +330,7 @@ ark_schema = {
     'type': 'object',
     'properties': {
         '@id': {'type': 'string'},
+        '@context': {'enum': ['https://schema.org']},
         '@type': {'enum': ['Dataset', 'CreativeWork']},
         'identifier': {
             'oneOf': [
@@ -360,6 +373,7 @@ ark_schema = {
         'checksumMethod': {'type': 'string'},
         'author': {
             'oneOf': [
+                    {'type': 'string'},
                     {
                         'type':'object',
                         'properties': {
