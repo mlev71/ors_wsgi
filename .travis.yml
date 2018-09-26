@@ -15,6 +15,8 @@ install:
    - pip3 install -r requirements.txt
    - pip3 install mock nose parameterized
 
+script:
+  - python3 app/test/
 
 after_success:
    - set -e
