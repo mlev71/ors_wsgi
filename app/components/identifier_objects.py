@@ -378,19 +378,23 @@ class Doi(object):
         else:
             # must randomly assign doi when posting in JSON-LD
             doi = '10.25489/'+''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
-            self.data['@id'] = 'https://doi.org/'+doi
+            self.data['@id'] = doi
 
         response = {
             '@id': 'doi:/'+doi,
             'datacite': {},
         }
 
+
+        # convert to XML
+        payload = DataciteXML(self.data).convert()
+
         # register metadata- MUST HAPPEN FIRST
         create_metadata = requests.put(
                 url = DATACITE_URL + "/metadata/" + doi,
                 auth = self.auth,
-                data = json.dumps(self.data),
-                headers = {'Content-Type': 'application/vnd.schemaorg.ld+json;charset=utf-8'},
+                data = payload.encode('utf-8'),
+                headers = {'Content-Type': 'application/xml;charset=utf-8'},
                 )
 
         if create_metadata.status_code != 201:

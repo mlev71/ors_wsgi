@@ -531,3 +531,199 @@ class DoiXML(object):
         sizes = self.xml_root.find('{http://datacite.org/schema/kernel-4}sizes')
         if sizes is not None:
             self.json_ld['contentSize'] = sizes.findtext('{http://datacite.org/schema/kernel-4}size')
+
+
+
+nameType_xml = {
+    'Organization': 'Organizational',
+    'Person': 'Personal'
+}
+nameType_json = {
+    'Organizational': 'Organization',
+    'Person': 'Personal'
+}
+
+xml_header = '<?xml version="1.0" encoding="UTF-8"?>'
+properResourceTag ='<resource xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://datacite.org/schema/kernel-4" xsi:schemaLocation="http://datacite.org/schema/kernel-4 http://schema.datacite.org/meta/kernel-4/metadata.xsd">'
+
+
+class DataciteXML(object):
+    XmlHeader = '<?xml version="1.0" encoding="UTF-8"?>'
+    ProperResourceTag = '<resource xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://datacite.org/schema/kernel-4" xsi:schemaLocation="http://datacite.org/schema/kernel-4 http://schema.datacite.org/meta/kernel-4/metadata.xsd">'
+
+
+    def __init__(self, doi_json):
+        self.doi_json = doi_json
+
+
+    def convert(self):
+        doi_json = self.doi_json
+
+        E = objectify.ElementMaker(
+            annotate=False
+        )
+
+        resource = E.resource()
+        resourceType = etree.SubElement(resource, "resourceType", resourceTypeGeneral='Dataset')._setText("XML")
+
+
+        # add identifiers
+        if doi_json.get('@id') is not None:
+            identifier = etree.SubElement(resource, "identifier", identifierType="DOI")._setText(doi_json.get('@id').replace('doi:/',''))
+
+
+        # publicationYear
+        if doi_json.get('datePublished') is not None:
+            etree.SubElement(resource, "publicationYear")._setText(doi_json.get('datePublished'))
+
+        # publisher
+        publisher = doi_json.get('publisher')
+        if publisher is not None:
+            if isinstance(publisher, dict):
+                etree.SubElement(resource, 'publisher')._setText(publisher.get('name'))
+
+            if isinstance(publisher, list) and len(publisher)!=0:
+                etree.SubElement(resource, 'publisher')._setText(publisher[0].get('name'))
+
+            if isinstance(publisher, str):
+                etree.SubElement(resource, 'publisher')._setText(publisher)
+
+
+
+
+
+        # add titles
+        titles = etree.SubElement(resource, "titles")
+        etree.SubElement(titles, "title")._setText(doi_json.get('name'))
+
+
+        # add a single description of type abstract
+        desc = doi_json.get('description')
+        descriptions = etree.SubElement(resource, "descriptions")
+        if desc is not None:
+            etree.SubElement(descriptions, "description", descriptionType="Abstract")._setText(desc)
+
+
+        # add version
+        version = doi_json.get('version')
+        if version is not None:
+            etree.SubElement(resource, "version")._setText(version)
+
+
+
+        # keywords
+        subject_list = doi_json.get('keywords')
+        if subject_list is not None:
+            subjects = etree.SubElement(resource, "subjects")
+
+            if isinstance(subject_list, str):
+                subject_list = subject_list.split(',')
+
+            if isinstance(subject_list, list):
+                for sub in subject_list:
+                   etree.SubElement(subjects, "subject")._setText(sub)
+
+
+        # add authors
+        auth = doi_json.get('author')
+        creators = etree.SubElement(resource, "creators")
+
+        if isinstance(auth, dict):
+            auth = [auth]
+
+        if isinstance(auth, list):
+            c = etree.SubElement(creators, "creator")
+            # every author in the list
+            for author_elem in auth:
+                auth_name = author_elem.get('name')
+                etree.SubElement(c, "creatorName")._setText(auth_name)
+
+
+
+        # add funders
+        funders = doi_json.get('funder')
+
+        if funders is not None:
+            funding_reference = etree.SubElement(resource, "fundingReferences")
+
+            if isinstance(funders,dict):
+                funders = [funders]
+
+            if isinstance(funders,list):
+                for fund_elem in funder:
+                    fundingRef = etree.SubElement(funding_reference, "fundingReference")
+
+                    fund_name   = fund_elem.get('name')
+                    fund_id     = fund_elem.get('@id')
+                    award_num   = fund_elem.get('awardNumber')
+                    award_title = fund_elem.get('awardTitle')
+
+                    if fund_name:
+                        etree.SubElement(fundingRef, "funderName")._setText(fund_name)
+
+                    if fund_id:
+                        etree.SubElement(fundingRef, "funderIdentifier", funderIdentifierType="Other")._setText(fund_id)
+
+                    if award_num:
+                        etree.SubElement(fundingRef, "awardNumber")._setText(award_num)
+
+                    if award_title:
+                        etree.SubElement(fundingRef, "awardTitle")._setText(award_title)
+
+
+        # alternateIdentifiers
+
+        # add relatedIdentifiers and Checksums
+        relatedIds = {
+            'HasPart': doi_json.get('hasPart'),
+            'IsPartOf': doi_json.get('isPartOf'),
+            'IsDerivedFrom': doi_json.get('isBasedOn'),
+            'PredecessorOf': doi_json.get('predeccessorOf'),
+            'SuccessorOf': doi_json.get('successorOf'),
+            'includedInDataCatalog': doi_json.get('includedInDataCatalog')
+            }
+
+        if not all([id_ is None for id_ in relatedIds.values()]):
+            related_identifiers = etree.SubElement(resource, "relatedIdentifiers")
+
+            dc = doi_json.get('includedInDataCatalog')
+            if dc is not None:
+                if isinstance(dc, str):
+                    etree.SubElement(related_identifiers, "relatedIdentifier", relatedIdentifierType="URL",
+                                        relationType="IsPartOf")._setText(dc)
+
+                if isinstance(dc, dict):
+                    # get identifier of includedInDataCatalog
+                    dc_id = dc.get('@id')
+                    etree.SubElement(related_identifiers, "relatedIdentifier", relatedIdentifierType="URL",
+                                        relationType="IsPartOf")._setText(dc_id)
+                    # add datacatalog name to descriptions
+                    dc_name = dc.get('name')
+                    etree.SubElement(descriptions, "description", descriptionType="SeriesInformation")._setText(dc_name)
+
+            relatedIds.pop('includedInDataCatalog')
+            for key, value in relatedIds.items():
+                    if value is not None:
+                        if isinstance(value, str):
+
+                            if re.match(r'doi', value):
+                                etree.SubElement(related_identifiers, "relatedIdentifier", relatedIdentifierType="DOI",
+                                                    relationType=key)._setText(value)
+                            else:
+                                etree.SubElement(related_identifiers, "relatedIdentifier", relatedIdentifierType="URL",
+                                                    relationType=key)._setText(value)
+
+                        if isinstance(value, dict):
+                            if re.match(r'doi', value.get('@id')):
+                                etree.SubElement(related_identifiers, "relatedIdentifier", relatedIdentifierType="DOI",
+                                                    relationType=key)._setText(value.get('@id'))
+
+                            else:
+                                etree.SubElement(related_identifiers, "relatedIdentifier", relatedIdentifierType="URL",
+                                                relationType=key)._setText(value.get('@id'))
+
+
+
+        xml_string = etree.tostring(resource).decode('utf-8')
+        datacite_xml  = xml_header + xml_string.replace('<resource>', properResourceTag)
+        return datacite_xml
